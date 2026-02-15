@@ -10,6 +10,8 @@ actor AgendaCacheStore {
     }
 
     func replace(items: [AgendaItem], in interval: DateInterval) async throws {
+        let calendar = self.calendar
+
         try await withCheckedThrowingContinuation { continuation in
             container.performBackgroundTask { context in
                 do {
@@ -39,7 +41,7 @@ actor AgendaCacheStore {
                         object.endDate = item.endDate
                         object.isAllDay = item.isAllDay
                         object.isCompleted = item.isCompleted
-                        object.dayAnchor = self.calendar.startOfDay(for: item.sortDate)
+                        object.dayAnchor = calendar.startOfDay(for: item.sortDate)
                         object.updatedAt = .now
                     }
 
