@@ -95,3 +95,41 @@ jobs:
         with:
           files: dist/*.dmg
           generate_release_notes: true
+
+  release-main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-test-dmg
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download DMG Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lunarcalendar-dmg
+          path: dist
+
+      - name: Publish Rolling Main Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="main-latest"
+          TITLE="Latest main build"
+          NOTES="Rolling prerelease with the latest DMG from branch main."
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              --target "${GITHUB_SHA}"
+          else
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              --target "${GITHUB_SHA}" \
+              --prerelease
+          fi
+
+          gh release upload "$TAG" dist/*.dmg --clobber
