@@ -119,17 +119,19 @@ jobs:
           TITLE="Latest main build"
           NOTES="Rolling prerelease with the latest DMG from branch main."
 
-          if gh release view "$TAG" > /dev/null 2>&1; then
+          if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
             gh release edit "$TAG" \
+              --repo "${GITHUB_REPOSITORY}" \
               --title "$TITLE" \
               --notes "$NOTES" \
               --target "${GITHUB_SHA}"
           else
             gh release create "$TAG" \
+              --repo "${GITHUB_REPOSITORY}" \
               --title "$TITLE" \
               --notes "$NOTES" \
               --target "${GITHUB_SHA}" \
               --prerelease
           fi
 
-          gh release upload "$TAG" dist/*.dmg --clobber
+          gh release upload "$TAG" dist/*.dmg --clobber --repo "${GITHUB_REPOSITORY}"
