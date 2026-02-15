@@ -94,6 +94,10 @@ struct SettingsContentView: View {
                 )
             )
 
+            Divider()
+
+            updateRow
+
             if compact {
                 SettingsLink {
                     Label("Open Full Settings", systemImage: "slider.horizontal.3")
@@ -102,6 +106,66 @@ struct SettingsContentView: View {
                 .buttonStyle(.link)
             }
         }
+    }
+
+    private var updateRow: some View {
+        HStack {
+            switch model.updateStatus {
+            case .idle:
+                Text("Check for updates")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Check Now") {
+                    model.checkForUpdates()
+                }
+                .controlSize(.small)
+
+            case .checking:
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking for updates…")
+                    .foregroundStyle(.secondary)
+                Spacer()
+
+            case .upToDate(let version):
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Up to date (v\(version))")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Dismiss") {
+                    model.dismissUpdateStatus()
+                }
+                .controlSize(.small)
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+
+            case .available(let latestVersion, _):
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(.blue)
+                Text("v\(latestVersion) available")
+                Spacer()
+                Button("View Release") {
+                    model.openLatestRelease()
+                }
+                .controlSize(.small)
+
+            case .error(let message):
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+                Button("Retry") {
+                    model.dismissUpdateStatus()
+                    model.checkForUpdates()
+                }
+                .controlSize(.small)
+            }
+        }
+        .font(.footnote)
     }
 
     private var sourceCard: some View {
