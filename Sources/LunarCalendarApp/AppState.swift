@@ -581,6 +581,9 @@ final class AppState {
         updateStatus = .installing(downloaded.latestVersion)
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
+        configuration.createsNewApplicationInstance = true
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let bundleIdentifier = Bundle.main.bundleIdentifier
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { [weak self] _, error in
             Task { @MainActor [weak self] in
                 guard let self else {
@@ -590,7 +593,33 @@ final class AppState {
                     self.updateStatus = .error(error.localizedDescription)
                     return
                 }
-                NSApp.terminate(nil)
+                guard let bundleIdentifier else {
+                    NSApp.terminate(nil)
+                    return
+                }
+
+                Task { @MainActor [weak self] in
+                    guard let self else {
+                        return
+                    }
+                    let deadline = Date().addingTimeInterval(4)
+                    while Date() < deadline {
+                        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+                        let hasNewInstance = running.contains { $0.processIdentifier != currentPID }
+                        if hasNewInstance {
+                            NSApp.terminate(nil)
+                            return
+                        }
+                        try? await Task.sleep(for: .milliseconds(200))
+                    }
+
+                    self.updateStatus = .error(
+                        L10n.tr(
+                            "Downloaded app did not relaunch automatically. Please use Relaunch again or open installer manually.",
+                            fallback: "Downloaded app did not relaunch automatically. Please use Relaunch again or open installer manually."
+                        )
+                    )
+                }
             }
         }
     }
