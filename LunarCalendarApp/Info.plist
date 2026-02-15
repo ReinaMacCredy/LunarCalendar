@@ -14,13 +14,13 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>LunarCalendarApp needs Calendar access to show your events in the agenda.</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>LunarCalendarApp needs Reminders access to show your reminders in the agenda.</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>LunarCalendarApp needs Calendar access to show your events in the agenda.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>LunarCalendarApp needs Reminders access to show your reminders in the agenda.</string>
 </dict>
 </plist>

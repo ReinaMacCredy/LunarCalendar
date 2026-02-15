@@ -15,8 +15,15 @@ targets:
       - path: Sources/LunarCalendarApp
     info:
       path: LunarCalendarApp/Info.plist
+      properties:
+        NSCalendarsFullAccessUsageDescription: LunarCalendarApp needs Calendar access to show your events in the agenda.
+        NSRemindersFullAccessUsageDescription: LunarCalendarApp needs Reminders access to show your reminders in the agenda.
     entitlements:
       path: LunarCalendarApp/LunarCalendarApp.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.personal-information.calendars: true
+        com.apple.security.personal-information.reminders: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.reinamaccredy.lunarcalendar
@@ -25,6 +32,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: ''
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ''
+        ENABLE_HARDENED_RUNTIME: YES
 schemes:
   LunarCalendarApp:
     build:

@@ -80,10 +80,11 @@ final class AppState {
         case .calendarSymbol:
             return "Cal"
         case .customFormat:
+            let format = String(settings.customIconFormat.prefix(64))
             let formatter = DateFormatter()
             formatter.locale = .current
             formatter.calendar = calendar
-            formatter.dateFormat = settings.customIconFormat
+            formatter.dateFormat = format
             return formatter.string(from: menuBarDate)
         }
     }
@@ -457,10 +458,61 @@ final class AppState {
         }
     }
 
+    var updateStatus: UpdateStatus = .idle
+
     func checkForUpdates() {
-        if let url = URL(string: "https://github.com/LunarBar-app/LunarBar/releases/latest") {
+        guard case .idle = updateStatus else { return }
+        updateStatus = .checking
+
+        Task {
+            do {
+                let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
+                let url = URL(string: "https://api.github.com/repos/reinamaccredy/lunarCalendar/releases/latest")!
+                var request = URLRequest(url: url)
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                request.timeoutInterval = 15
+
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    updateStatus = .error("Unexpected response")
+                    return
+                }
+
+                if httpResponse.statusCode == 404 {
+                    updateStatus = .upToDate(currentVersion)
+                    return
+                }
+
+                guard httpResponse.statusCode == 200 else {
+                    updateStatus = .error("GitHub returned status \(httpResponse.statusCode)")
+                    return
+                }
+
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                let tagName = (json?["tag_name"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+                let htmlURL = json?["html_url"] as? String
+
+                if tagName.compare(currentVersion, options: .numeric) == .orderedDescending {
+                    updateStatus = .available(latestVersion: tagName, releaseURL: htmlURL)
+                } else {
+                    updateStatus = .upToDate(currentVersion)
+                }
+            } catch {
+                updateStatus = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    func openLatestRelease() {
+        if case .available(_, let releaseURL) = updateStatus, let releaseURL, let url = URL(string: releaseURL) {
+            NSWorkspace.shared.open(url)
+        } else if let url = URL(string: "https://github.com/reinamaccredy/lunarCalendar/releases/latest") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    func dismissUpdateStatus() {
+        updateStatus = .idle
     }
 
     private func vietnameseLunarMenuBarTitle(for date: Date) -> String {

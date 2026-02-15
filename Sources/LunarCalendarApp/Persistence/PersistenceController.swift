@@ -20,9 +20,23 @@ final class PersistenceController {
         description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
 
         container.persistentStoreDescriptions = [description]
-        container.loadPersistentStores { _, error in
-            if let error {
-                fatalError("Failed to load persistent store: \(error)")
+        container.loadPersistentStores { [container] storeDescription, error in
+            guard error != nil else { return }
+            // Attempt recovery: delete corrupt store and fall back to in-memory
+            if let url = storeDescription.url {
+                try? FileManager.default.removeItem(at: url)
+                // Also remove WAL/SHM sidecar files
+                try? FileManager.default.removeItem(at: url.appendingPathExtension("wal"))
+                try? FileManager.default.removeItem(at: url.appendingPathExtension("shm"))
+            }
+            let fallback = NSPersistentStoreDescription()
+            fallback.url = URL(fileURLWithPath: "/dev/null")
+            fallback.type = NSSQLiteStoreType
+            container.persistentStoreDescriptions = [fallback]
+            container.loadPersistentStores { _, retryError in
+                if retryError != nil {
+                    // In-memory fallback also failed; app will run without cache
+                }
             }
         }
 

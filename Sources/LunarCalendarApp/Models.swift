@@ -1,5 +1,13 @@
 import Foundation
 
+enum UpdateStatus: Sendable {
+    case idle
+    case checking
+    case upToDate(String)
+    case available(latestVersion: String, releaseURL: String?)
+    case error(String)
+}
+
 enum AccessState: String, Codable, Sendable {
     case notDetermined
     case authorized
@@ -130,7 +138,8 @@ struct UserSettings: Hashable, Codable, Sendable {
         showHolidays = try container.decodeIfPresent(Bool.self, forKey: .showHolidays) ?? true
         showSolarTerms = try container.decodeIfPresent(Bool.self, forKey: .showSolarTerms) ?? true
         showReminders = try container.decodeIfPresent(Bool.self, forKey: .showReminders) ?? true
-        firstWeekday = try container.decodeIfPresent(Int.self, forKey: .firstWeekday) ?? 2
+        let rawWeekday = try container.decodeIfPresent(Int.self, forKey: .firstWeekday) ?? 2
+        firstWeekday = max(1, min(7, rawWeekday))
         selectedEventCalendarIDs = try container.decodeIfPresent(Set<String>.self, forKey: .selectedEventCalendarIDs) ?? []
         selectedReminderCalendarIDs = try container.decodeIfPresent(Set<String>.self, forKey: .selectedReminderCalendarIDs) ?? []
         allEventCalendarsSelected = try container.decodeIfPresent(Bool.self, forKey: .allEventCalendarsSelected)
