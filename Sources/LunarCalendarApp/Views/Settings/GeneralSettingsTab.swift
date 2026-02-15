@@ -99,6 +99,10 @@ struct GeneralSettingsTab: View {
                     }
                     .controlSize(.small)
                 }
+                Button(L10n.tr("Check Update", fallback: "Check Update")) {
+                    model.checkForUpdates()
+                }
+                .controlSize(.small)
                 Button("View Release") {
                     model.openLatestRelease()
                 }
@@ -140,6 +144,10 @@ struct GeneralSettingsTab: View {
                     }
                     .controlSize(.small)
                 }
+                Button(L10n.tr("Check Update", fallback: "Check Update")) {
+                    model.checkForUpdates()
+                }
+                .controlSize(.small)
             case .installing(let latestVersion):
                 ProgressView()
                     .controlSize(.small)

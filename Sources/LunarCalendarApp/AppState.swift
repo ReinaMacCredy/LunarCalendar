@@ -501,7 +501,7 @@ final class AppState {
                 case .available(let release):
                     updateStatus = .available(release)
                     if settings.autoDownloadUpdates {
-                        downloadAvailableUpdate()
+                        downloadAndRelaunchAvailableUpdate()
                     }
                 }
             } catch {
