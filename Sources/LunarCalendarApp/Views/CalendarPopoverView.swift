@@ -48,12 +48,8 @@ struct CalendarPopoverView: View {
                 }
             }
         }
-        .task {
-            for await _ in NotificationCenter.default.notifications(named: .EKEventStoreChanged) {
-                await MainActor.run {
-                    model.refresh(reason: .eventStoreChanged)
-                }
-            }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+            model.refresh(reason: .eventStoreChanged)
         }
     }
 
