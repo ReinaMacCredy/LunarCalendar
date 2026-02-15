@@ -37,26 +37,8 @@ actor EventKitService {
         }
 
         do {
-            let granted: Bool
-            if #available(macOS 14.0, *) {
-                switch entity {
-                case .event:
-                    granted = try await store.requestFullAccessToEvents()
-                case .reminder:
-                    granted = try await store.requestFullAccessToReminders()
-                }
-            } else {
-                granted = try await withCheckedThrowingContinuation { continuation in
-                    let ekType: EKEntityType = (entity == .event) ? .event : .reminder
-                    store.requestAccess(to: ekType) { granted, error in
-                        if let error {
-                            continuation.resume(throwing: error)
-                        } else {
-                            continuation.resume(returning: granted)
-                        }
-                    }
-                }
-            }
+            let granted = try await Self.requestAccess(for: entity)
+            store.reset()
 
             return granted ? .authorized : .denied
         } catch {
@@ -202,6 +184,16 @@ actor EventKitService {
             return info["NSCalendarsFullAccessUsageDescription"] != nil || info["NSCalendarsUsageDescription"] != nil
         case .reminder:
             return info["NSRemindersFullAccessUsageDescription"] != nil || info["NSRemindersUsageDescription"] != nil
+        }
+    }
+
+    private static func requestAccess(for entity: CalendarAccessEntity) async throws -> Bool {
+        let requestStore = EKEventStore()
+        switch entity {
+        case .event:
+            return try await requestStore.requestFullAccessToEvents()
+        case .reminder:
+            return try await requestStore.requestFullAccessToReminders()
         }
     }
 }
