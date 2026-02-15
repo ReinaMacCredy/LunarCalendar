@@ -15,7 +15,11 @@ extension Date {
 
 struct CalendarGridBuilder {
     static func weekdaySymbols(calendar: Calendar, firstWeekday: Int) -> [String] {
-        let raw = ["S", "M", "T", "W", "T", "F", "S"]
+        let formatter = DateFormatter()
+        formatter.locale = calendar.locale ?? L10n.locale
+        let raw = formatter.veryShortStandaloneWeekdaySymbols
+            ?? formatter.shortStandaloneWeekdaySymbols
+            ?? ["S", "M", "T", "W", "T", "F", "S"]
         let shift = max(0, min(6, firstWeekday - 1))
         return Array(raw[shift...] + raw[..<shift])
     }

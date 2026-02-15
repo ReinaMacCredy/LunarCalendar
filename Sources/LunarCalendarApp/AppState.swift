@@ -26,12 +26,14 @@ final class AppState {
     private let settingsStore: SettingsStore
     private let cacheStore: AgendaCacheStore
     private let launchAtLoginManager: LaunchAtLoginManager
+    private let updateService: UpdateService
 
-    private let calendar: Calendar
+    private var calendar: Calendar
     private let legacyCustomFormatValue = "EEE d MMM HH:mm"
     private var bootstrapDone = false
     private var bootstrapTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
+    private var autoUpdateTask: Task<Void, Never>?
     private var refreshNonce: Int = 0
     private var saveSettingsTask: Task<Void, Never>?
 
@@ -40,11 +42,13 @@ final class AppState {
         eventService: EventKitService = EventKitService(),
         settingsStore: SettingsStore = SettingsStore(),
         cacheStore: AgendaCacheStore = AgendaCacheStore(),
-        launchAtLoginManager: LaunchAtLoginManager = LaunchAtLoginManager()
+        launchAtLoginManager: LaunchAtLoginManager = LaunchAtLoginManager(),
+        updateService: UpdateService = UpdateService()
     ) {
+        let initialLanguage = L10n.appLanguage
         let now = Date()
         var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "vi_VN")
+        calendar.locale = initialLanguage.locale
         calendar.timeZone = .current
 
         self.selectedDate = calendar.startOfDay(for: now)
@@ -57,32 +61,39 @@ final class AppState {
         self.settingsStore = settingsStore
         self.cacheStore = cacheStore
         self.launchAtLoginManager = launchAtLoginManager
+        self.updateService = updateService
+        self.settings.language = initialLanguage
+    }
+
+    var appLocale: Locale {
+        settings.language.locale
     }
 
     var monthTitle: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.locale = appLocale
         formatter.calendar = calendar
         formatter.setLocalizedDateFormatFromTemplate("MMMM y")
-        return formatter.string(from: displayMonth).capitalized(with: Locale(identifier: "vi_VN"))
+        return formatter.string(from: displayMonth).capitalized(with: appLocale)
     }
 
     var menuBarTitle: String {
+        let locale = appLocale
         let day = calendar.component(.day, from: menuBarDate)
 
         switch settings.iconStyle {
         case .lunarCompact:
-            return vietnameseLunarMenuBarTitle(for: menuBarDate)
+            return localizedLunarMenuBarTitle(for: menuBarDate, locale: locale)
         case .calendarDayFilled:
             return "#\(day)"
         case .calendarDayOutlined:
             return "[\(day)]"
         case .calendarSymbol:
-            return "Cal"
+            return L10n.tr("Cal", locale: locale, fallback: "Cal")
         case .customFormat:
             let format = String(settings.customIconFormat.prefix(64))
             let formatter = DateFormatter()
-            formatter.locale = .current
+            formatter.locale = locale
             formatter.calendar = calendar
             formatter.dateFormat = format
             return formatter.string(from: menuBarDate)
@@ -114,6 +125,7 @@ final class AppState {
         }
 
         settings = await settingsStore.load()
+        applyLocalization()
         await migrateLegacyCustomFormatIfNeeded()
         launchAtLoginEnabled = launchAtLoginManager.isEnabled()
 
@@ -127,7 +139,11 @@ final class AppState {
         }
 
         bootstrapDone = true
+        configureAutoUpdatePolling()
         refresh(reason: .startup)
+        if settings.autoCheckForUpdates {
+            checkForUpdates(isAutomatic: true)
+        }
     }
 
     func refresh(reason: RefreshReason) {
@@ -138,7 +154,7 @@ final class AppState {
         let selectedDate = self.selectedDate
         let displayMonth = self.displayMonth
         let settings = self.settings
-        let locale = Locale(identifier: "vi_VN")
+        let locale = appLocale
         let timeZone = calendar.timeZone
 
         refreshTask = Task { [weak self] in
@@ -384,11 +400,13 @@ final class AppState {
     }
 
     func settingsDidChange() {
+        applyLocalization()
         saveSettingsTask?.cancel()
         let snapshot = settings
         saveSettingsTask = Task {
             await settingsStore.save(snapshot)
         }
+        configureAutoUpdatePolling()
         refresh(reason: .settingsChanged)
     }
 
@@ -460,42 +478,31 @@ final class AppState {
 
     var updateStatus: UpdateStatus = .idle
 
-    func checkForUpdates() {
-        guard case .idle = updateStatus else { return }
+    func checkForUpdates(isAutomatic: Bool = false) {
+        guard !isUpdateBusy else {
+            return
+        }
+        if isAutomatic, settings.autoCheckForUpdates == false {
+            return
+        }
         updateStatus = .checking
 
-        Task {
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
             do {
                 let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
-                let url = URL(string: "https://api.github.com/repos/reinamaccredy/lunarCalendar/releases/latest")!
-                var request = URLRequest(url: url)
-                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                request.timeoutInterval = 15
+                let result = try await updateService.checkForUpdate(currentVersion: currentVersion)
 
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    updateStatus = .error("Unexpected response")
-                    return
-                }
-
-                if httpResponse.statusCode == 404 {
-                    updateStatus = .upToDate(currentVersion)
-                    return
-                }
-
-                guard httpResponse.statusCode == 200 else {
-                    updateStatus = .error("GitHub returned status \(httpResponse.statusCode)")
-                    return
-                }
-
-                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-                let tagName = (json?["tag_name"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-                let htmlURL = json?["html_url"] as? String
-
-                if tagName.compare(currentVersion, options: .numeric) == .orderedDescending {
-                    updateStatus = .available(latestVersion: tagName, releaseURL: htmlURL)
-                } else {
-                    updateStatus = .upToDate(currentVersion)
+                switch result {
+                case .upToDate(let version):
+                    updateStatus = .upToDate(version)
+                case .available(let release):
+                    updateStatus = .available(release)
+                    if settings.autoDownloadUpdates {
+                        downloadAvailableUpdate()
+                    }
                 }
             } catch {
                 updateStatus = .error(error.localizedDescription)
@@ -504,34 +511,156 @@ final class AppState {
     }
 
     func openLatestRelease() {
-        if case .available(_, let releaseURL) = updateStatus, let releaseURL, let url = URL(string: releaseURL) {
+        let releaseURLString: String?
+        switch updateStatus {
+        case .available(let release):
+            releaseURLString = release.releaseURL
+        default:
+            releaseURLString = nil
+        }
+
+        if let releaseURLString, let url = URL(string: releaseURLString) {
             NSWorkspace.shared.open(url)
-        } else if let url = URL(string: "https://github.com/reinamaccredy/lunarCalendar/releases/latest") {
+        } else if let url = URL(string: "https://github.com/ReinaMacCredy/LunarCalendar/releases/latest") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    func downloadAndRelaunchAvailableUpdate() {
+        downloadAvailableUpdate(autoRelaunch: true)
+    }
+
+    func downloadAvailableUpdate(autoRelaunch: Bool = false) {
+        guard case .available(let release) = updateStatus else {
+            return
+        }
+        guard release.asset != nil else {
+            updateStatus = .error(
+                L10n.tr(
+                    "No downloadable asset found for this release.",
+                    locale: appLocale,
+                    fallback: "No downloadable asset found for this release."
+                )
+            )
+            return
+        }
+
+        updateStatus = .downloading(latestVersion: release.latestVersion)
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+            do {
+                let downloaded = try await updateService.downloadUpdate(release)
+                updateStatus = .downloaded(downloaded)
+                if autoRelaunch {
+                    relaunchFromDownloadedUpdate()
+                }
+            } catch {
+                updateStatus = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    func relaunchFromDownloadedUpdate() {
+        guard case .downloaded(let downloaded) = updateStatus else {
+            return
+        }
+        guard let appURL = downloaded.extractedAppURL else {
+            NSWorkspace.shared.open(downloaded.fileURL)
+            updateStatus = .error(
+                L10n.tr(
+                    "Downloaded installer opened. Please install manually.",
+                    locale: appLocale,
+                    fallback: "Downloaded installer opened. Please install manually."
+                )
+            )
+            return
+        }
+
+        updateStatus = .installing(downloaded.latestVersion)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { [weak self] _, error in
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    return
+                }
+                if let error {
+                    self.updateStatus = .error(error.localizedDescription)
+                    return
+                }
+                NSApp.terminate(nil)
+            }
+        }
+    }
+
+    func openDownloadedInstaller() {
+        guard case .downloaded(let downloaded) = updateStatus else {
+            return
+        }
+        NSWorkspace.shared.open(downloaded.fileURL)
     }
 
     func dismissUpdateStatus() {
         updateStatus = .idle
     }
 
-    private func vietnameseLunarMenuBarTitle(for date: Date) -> String {
+    private var isUpdateBusy: Bool {
+        switch updateStatus {
+        case .checking, .downloading, .installing:
+            return true
+        case .idle, .upToDate, .available, .downloaded, .error:
+            return false
+        }
+    }
+
+    private func configureAutoUpdatePolling() {
+        autoUpdateTask?.cancel()
+        autoUpdateTask = nil
+
+        guard settings.autoCheckForUpdates else {
+            return
+        }
+
+        autoUpdateTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(21_600))
+                guard !Task.isCancelled else {
+                    return
+                }
+                await MainActor.run {
+                    self?.checkForUpdates(isAutomatic: true)
+                }
+            }
+        }
+    }
+
+    private func applyLocalization() {
+        L10n.setLanguage(settings.language)
+        calendar.locale = appLocale
+        calendar.timeZone = .current
+    }
+
+    private func localizedLunarMenuBarTitle(for date: Date, locale: Locale) -> String {
         var lunarCalendar = Calendar(identifier: .chinese)
-        lunarCalendar.locale = Locale(identifier: "vi_VN")
+        lunarCalendar.locale = locale
         lunarCalendar.timeZone = calendar.timeZone
 
         let components = lunarCalendar.dateComponents([.month, .day, .isLeapMonth], from: date)
         let day = components.day ?? 1
         let month = components.month ?? 1
-        let leapMarker = (components.isLeapMonth ?? false) ? " nhuận" : ""
+        let leapMarker = (components.isLeapMonth ?? false)
+            ? " \(L10n.tr("nhuận", locale: locale, fallback: "nhuận"))"
+            : ""
 
         let cyclicalYearFormatter = DateFormatter()
         cyclicalYearFormatter.calendar = lunarCalendar
-        cyclicalYearFormatter.locale = Locale(identifier: "vi_VN")
+        cyclicalYearFormatter.locale = locale
         cyclicalYearFormatter.timeZone = calendar.timeZone
         cyclicalYearFormatter.dateFormat = "U"
         let yearName = cyclicalYearFormatter.string(from: date)
 
-        return "ÂL \(day)/\(month)\(leapMarker) \(yearName)"
+        return "\(L10n.tr("ÂL", locale: locale, fallback: "ÂL")) \(day)/\(month)\(leapMarker) \(yearName)"
     }
 }

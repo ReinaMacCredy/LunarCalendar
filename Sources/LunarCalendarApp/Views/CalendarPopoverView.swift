@@ -51,6 +51,7 @@ struct CalendarPopoverView: View {
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             model.refresh(reason: .eventStoreChanged)
         }
+        .environment(\.locale, model.appLocale)
     }
 
     // MARK: - Header
@@ -81,7 +82,7 @@ struct CalendarPopoverView: View {
                         .frame(width: 7, height: 7)
                 }
                 .buttonStyle(.plain)
-                .help("Hôm nay")
+                .help(L10n.tr("Hôm nay", locale: model.appLocale, fallback: "Hôm nay"))
                 .popover(isPresented: $isJumpDatePopoverPresented, arrowEdge: .top) {
                     jumpDatePopover
                 }
@@ -94,7 +95,7 @@ struct CalendarPopoverView: View {
                         .foregroundStyle(CalendarTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
-                .help("Cài đặt")
+                .help(L10n.tr("Cài đặt", locale: model.appLocale, fallback: "Cài đặt"))
             }
         }
     }
@@ -116,7 +117,7 @@ struct CalendarPopoverView: View {
 
     private var monthName: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.locale = model.appLocale
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "MMMM"
         return formatter.string(from: model.displayMonth)
@@ -124,7 +125,7 @@ struct CalendarPopoverView: View {
 
     private var yearText: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.locale = model.appLocale
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyy"
         return formatter.string(from: model.displayMonth)
@@ -146,8 +147,8 @@ struct CalendarPopoverView: View {
             }
 
             HStack(spacing: 8) {
-                quickJumpButton(title: "-1 năm", yearOffset: -1)
-                quickJumpButton(title: "+1 năm", yearOffset: 1)
+                quickJumpButton(title: L10n.tr("-1 năm", locale: model.appLocale, fallback: "-1 năm"), yearOffset: -1)
+                quickJumpButton(title: L10n.tr("+1 năm", locale: model.appLocale, fallback: "+1 năm"), yearOffset: 1)
                 Spacer(minLength: 0)
                 Text(jumpDatePreview)
                     .font(.caption)
@@ -155,7 +156,7 @@ struct CalendarPopoverView: View {
             }
 
             HStack(spacing: 10) {
-                jumpPicker(title: "Ngày") {
+                jumpPicker(title: L10n.tr("Ngày", locale: model.appLocale, fallback: "Ngày")) {
                     Picker("Ngày", selection: $jumpDay) {
                         ForEach(1...maxJumpDay, id: \.self) { day in
                             Text("\(day)").tag(day)
@@ -165,17 +166,22 @@ struct CalendarPopoverView: View {
                     .pickerStyle(.menu)
                 }
 
-                jumpPicker(title: "Tháng") {
+                jumpPicker(title: L10n.tr("Tháng", locale: model.appLocale, fallback: "Tháng")) {
                     Picker("Tháng", selection: $jumpMonth) {
                         ForEach(1...12, id: \.self) { month in
-                            Text("Tháng \(month)").tag(month)
+                            let monthLabel = String(
+                                format: L10n.tr("Tháng %@", locale: model.appLocale, fallback: "Tháng %@"),
+                                locale: model.appLocale,
+                                "\(month)"
+                            )
+                            Text(monthLabel).tag(month)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                 }
 
-                jumpPicker(title: "Năm") {
+                jumpPicker(title: L10n.tr("Năm", locale: model.appLocale, fallback: "Năm")) {
                     Picker("Năm", selection: $jumpYear) {
                         ForEach(jumpYearRange, id: \.self) { year in
                             Text("\(year)").tag(year)
@@ -248,7 +254,7 @@ struct CalendarPopoverView: View {
         guard let date = jumpSelectionDate else {
             return "--"
         }
-        return date.formatted(.dateTime.locale(Locale(identifier: "vi_VN")).day().month().year())
+        return date.formatted(.dateTime.locale(model.appLocale).day().month().year())
     }
 
     private func syncJumpSelection(with date: Date) {

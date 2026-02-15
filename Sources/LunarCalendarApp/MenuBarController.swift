@@ -25,10 +25,11 @@ enum SettingsWindowPresenter {
 
         if let hosting = windowController?.contentViewController as? NSHostingController<AppSettingsView> {
             hosting.rootView = settingsView
+            windowController?.window?.title = L10n.tr("Cài đặt", locale: model.appLocale, fallback: "Cài đặt")
         } else {
             let hosting = NSHostingController(rootView: settingsView)
             let window = NSWindow(contentViewController: hosting)
-            window.title = "Cài đặt"
+            window.title = L10n.tr("Cài đặt", locale: model.appLocale, fallback: "Cài đặt")
             window.setContentSize(NSSize(width: 620, height: 480))
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
@@ -48,6 +49,8 @@ final class StatusPopoverController: NSObject {
     private let statusItem: NSStatusItem
     private let hostingController: NSHostingController<CalendarPopoverView>
     private let statusMenu = NSMenu()
+    private var settingsMenuItem: NSMenuItem?
+    private var quitMenuItem: NSMenuItem?
 
     init(model: AppState) {
         self.model = model
@@ -77,13 +80,23 @@ final class StatusPopoverController: NSObject {
         button.font = .monospacedDigitSystemFont(ofSize: 15, weight: .medium)
         button.title = model.menuBarTitle
 
-        let settingsItem = NSMenuItem(title: "Cài đặt", action: #selector(openSettingsWindow), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(
+            title: L10n.tr("Cài đặt", locale: model.appLocale, fallback: "Cài đặt"),
+            action: #selector(openSettingsWindow),
+            keyEquivalent: ","
+        )
         settingsItem.target = self
+        settingsMenuItem = settingsItem
         statusMenu.addItem(settingsItem)
         statusMenu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "Thoát LunarCalendar", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(
+            title: L10n.tr("Thoát LunarCalendar", locale: model.appLocale, fallback: "Thoát LunarCalendar"),
+            action: #selector(quitApp),
+            keyEquivalent: "q"
+        )
         quitItem.target = self
+        quitMenuItem = quitItem
         statusMenu.addItem(quitItem)
     }
 
@@ -137,17 +150,20 @@ final class StatusPopoverController: NSObject {
     private func trackMenuBarTitle() {
         withObservationTracking {
             _ = model.menuBarTitle
+            _ = model.settings.language
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                self?.updateMenuBarTitle()
+                self?.refreshLocalizedUI()
                 self?.trackMenuBarTitle()
             }
         }
 
-        updateMenuBarTitle()
+        refreshLocalizedUI()
     }
 
-    private func updateMenuBarTitle() {
+    private func refreshLocalizedUI() {
         statusItem.button?.title = model.menuBarTitle
+        settingsMenuItem?.title = L10n.tr("Cài đặt", locale: model.appLocale, fallback: "Cài đặt")
+        quitMenuItem?.title = L10n.tr("Thoát LunarCalendar", locale: model.appLocale, fallback: "Thoát LunarCalendar")
     }
 }

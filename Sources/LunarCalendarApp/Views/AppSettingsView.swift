@@ -28,6 +28,7 @@ struct AppSettingsView: View {
         .task {
             await model.bootstrapIfNeeded()
         }
+        .environment(\.locale, model.appLocale)
         .overlay(alignment: .bottom) {
             if let errorMessage = model.errorMessage {
                 Text(errorMessage)

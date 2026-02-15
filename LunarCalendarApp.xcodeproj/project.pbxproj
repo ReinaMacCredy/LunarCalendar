@@ -12,15 +12,18 @@
 		125DBD3C55D66C6BD157FB52 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1434CB52CF722CD9CD585572 /* LaunchAtLoginManager.swift */; };
 		198919D926141D565DF8A8CE /* LunarCalendarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D43CCBC2CD8F223D7A4A042 /* LunarCalendarApp.swift */; };
 		20A6E8E2E09857BE1D9EF22C /* SettingsContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDE5FC5BD02BA96B44C82AD0 /* SettingsContentView.swift */; };
+		2A77E5B22DECCE2F9E501497 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = AB22478BA20C7599BDC3E595 /* Localizable.strings */; };
 		2D743FF2A9ADAB5CAF91906A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8542CC2F15071D6381BEA8F /* Models.swift */; };
 		3628F365A83EC147A8023997 /* EventKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7181E38EE35EBFE2DD323770 /* EventKitService.swift */; };
 		41A645E1D423428CD8EF9387 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE5B6E8E748C39A543BCCF3 /* PersistenceController.swift */; };
 		59238440428383F684F54BF7 /* AgendaListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF9098F7AF909833087575E /* AgendaListView.swift */; };
+		6B9CF22892FEDE3FE81F3549 /* UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95D0F682C6E8D104BB0C78C /* UpdateService.swift */; };
 		7363E25189FEA733E33C68DE /* AppSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FB3A28BE076B236B564623 /* AppSettingsView.swift */; };
 		7DAFA41D6ED8AF51568A16C7 /* MenuBarSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC04D6FE5416AB1C99DD10DA /* MenuBarSettingsTab.swift */; };
 		7EB9FA2576618B5A279FE19F /* DateSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E47CE509BAE561FBC75F4DA2 /* DateSupport.swift */; };
 		9EF3F4F05614C3D7BB374EA2 /* CalendarPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4E4A359C288050840E259E /* CalendarPopoverView.swift */; };
 		BFDEE747316AAE55F31D2A75 /* solar_terms.json in Resources */ = {isa = PBXBuildFile; fileRef = D8F5078480404E0710E9930A /* solar_terms.json */; };
+		C5663E8728A03A7BF015B894 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9FF6CE60D989049E2CA806 /* Localization.swift */; };
 		C92A0790BB53A56C60C4DDED /* CalendarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 442836C2F009251D14C80FE4 /* CalendarTheme.swift */; };
 		D0B66C40E2594A11EA240D50 /* SourcesSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB6619EF8A382D59ACBB41B /* SourcesSettingsTab.swift */; };
 		D2A74565FBE713E6DC33456A /* GeneralSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0345A0A732AE7F700E60B74 /* GeneralSettingsTab.swift */; };
@@ -33,6 +36,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0272CCE85AEDA38753642B1B /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/Localizable.strings; sourceTree = "<group>"; };
 		1434CB52CF722CD9CD585572 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		3A64A28B0A7F98C61DCCE832 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		3FB6619EF8A382D59ACBB41B /* SourcesSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesSettingsTab.swift; sourceTree = "<group>"; };
@@ -41,11 +45,14 @@
 		4D43CCBC2CD8F223D7A4A042 /* LunarCalendarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarCalendarApp.swift; sourceTree = "<group>"; };
 		5210F773DFD11EEE9F833C9E /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		5B4E4A359C288050840E259E /* CalendarPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPopoverView.swift; sourceTree = "<group>"; };
+		6B9FF6CE60D989049E2CA806 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		7181E38EE35EBFE2DD323770 /* EventKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitService.swift; sourceTree = "<group>"; };
 		7B85ABBF2C4A61D1676AD215 /* SettingsSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSectionView.swift; sourceTree = "<group>"; };
 		7FF9098F7AF909833087575E /* AgendaListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaListView.swift; sourceTree = "<group>"; };
+		89FB6CA07AC9E77FD1FDC434 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		AAE5B6E8E748C39A543BCCF3 /* PersistenceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceController.swift; sourceTree = "<group>"; };
 		ACCA213DB86DA8DB1ECD3417 /* LunarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarService.swift; sourceTree = "<group>"; };
+		B95D0F682C6E8D104BB0C78C /* UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateService.swift; sourceTree = "<group>"; };
 		CB44B19F08FD3B992148A5DD /* MonthGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthGridView.swift; sourceTree = "<group>"; };
 		D0345A0A732AE7F700E60B74 /* GeneralSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsTab.swift; sourceTree = "<group>"; };
 		D03FE50C87A16F01E12EB46E /* AgendaCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaCacheStore.swift; sourceTree = "<group>"; };
@@ -53,6 +60,7 @@
 		D8F5078480404E0710E9930A /* solar_terms.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = solar_terms.json; sourceTree = "<group>"; };
 		DC04D6FE5416AB1C99DD10DA /* MenuBarSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSettingsTab.swift; sourceTree = "<group>"; };
 		DF7914BBE2F3F98D17C715F4 /* CachedAgendaItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAgendaItem.swift; sourceTree = "<group>"; };
+		E220A301A2C22183CA46398C /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		E47CE509BAE561FBC75F4DA2 /* DateSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateSupport.swift; sourceTree = "<group>"; };
 		E9FB3A28BE076B236B564623 /* AppSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsView.swift; sourceTree = "<group>"; };
 		F8542CC2F15071D6381BEA8F /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -82,6 +90,7 @@
 				1434CB52CF722CD9CD585572 /* LaunchAtLoginManager.swift */,
 				ACCA213DB86DA8DB1ECD3417 /* LunarService.swift */,
 				5210F773DFD11EEE9F833C9E /* SettingsStore.swift */,
+				B95D0F682C6E8D104BB0C78C /* UpdateService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -109,6 +118,7 @@
 		C33F811481403C27AAF51894 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				AB22478BA20C7599BDC3E595 /* Localizable.strings */,
 				D8F5078480404E0710E9930A /* solar_terms.json */,
 			);
 			path = Resources;
@@ -127,6 +137,7 @@
 			children = (
 				43009B2601A54FDDEB3EF414 /* AppState.swift */,
 				E47CE509BAE561FBC75F4DA2 /* DateSupport.swift */,
+				6B9FF6CE60D989049E2CA806 /* Localization.swift */,
 				4D43CCBC2CD8F223D7A4A042 /* LunarCalendarApp.swift */,
 				3A64A28B0A7F98C61DCCE832 /* MenuBarController.swift */,
 				F8542CC2F15071D6381BEA8F /* Models.swift */,
@@ -190,6 +201,8 @@
 			knownRegions = (
 				Base,
 				en,
+				vi,
+				"zh-Hans",
 			);
 			mainGroup = FBE1D7BDAC3F24225DBA4CF7;
 			minimizedProjectReferenceProxies = 1;
@@ -207,6 +220,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2A77E5B22DECCE2F9E501497 /* Localizable.strings in Resources */,
 				BFDEE747316AAE55F31D2A75 /* solar_terms.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -229,6 +243,7 @@
 				3628F365A83EC147A8023997 /* EventKitService.swift in Sources */,
 				D2A74565FBE713E6DC33456A /* GeneralSettingsTab.swift in Sources */,
 				125DBD3C55D66C6BD157FB52 /* LaunchAtLoginManager.swift in Sources */,
+				C5663E8728A03A7BF015B894 /* Localization.swift in Sources */,
 				198919D926141D565DF8A8CE /* LunarCalendarApp.swift in Sources */,
 				F809EC12533146E7502D7225 /* LunarService.swift in Sources */,
 				0378E30F5EBE31B5870C2518 /* MenuBarController.swift in Sources */,
@@ -240,10 +255,24 @@
 				0D7DF3D46E6750E2E5CBB57F /* SettingsSectionView.swift in Sources */,
 				F653279484772553CC55F705 /* SettingsStore.swift in Sources */,
 				D0B66C40E2594A11EA240D50 /* SourcesSettingsTab.swift in Sources */,
+				6B9CF22892FEDE3FE81F3549 /* UpdateService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		AB22478BA20C7599BDC3E595 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				89FB6CA07AC9E77FD1FDC434 /* en */,
+				0272CCE85AEDA38753642B1B /* vi */,
+				E220A301A2C22183CA46398C /* zh-Hans */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		131C45458666AA02623365AC /* Release */ = {

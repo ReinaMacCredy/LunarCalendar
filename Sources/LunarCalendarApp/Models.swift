@@ -1,10 +1,47 @@
 import Foundation
 
+enum UpdateAssetKind: String, Sendable {
+    case zip
+    case dmg
+    case other
+}
+
+struct UpdateAsset: Hashable, Sendable {
+    let name: String
+    let downloadURL: String
+    let sizeInBytes: Int64?
+    let kind: UpdateAssetKind
+}
+
+struct UpdateRelease: Hashable, Sendable {
+    let latestVersion: String
+    let releaseURL: String?
+    let publishedAt: Date?
+    let asset: UpdateAsset?
+}
+
+struct DownloadedUpdate: Hashable, Sendable {
+    let latestVersion: String
+    let filePath: String
+    let extractedAppPath: String?
+
+    var fileURL: URL {
+        URL(fileURLWithPath: filePath)
+    }
+
+    var extractedAppURL: URL? {
+        extractedAppPath.map { URL(fileURLWithPath: $0) }
+    }
+}
+
 enum UpdateStatus: Sendable {
     case idle
     case checking
     case upToDate(String)
-    case available(latestVersion: String, releaseURL: String?)
+    case available(UpdateRelease)
+    case downloading(latestVersion: String)
+    case downloaded(DownloadedUpdate)
+    case installing(String)
     case error(String)
 }
 
@@ -25,6 +62,38 @@ enum AgendaKind: String, Codable, Sendable {
     case reminder
 }
 
+enum AppLanguage: String, Codable, CaseIterable, Sendable {
+    case vietnamese
+    case english
+    case chineseSimplified
+
+    var localeIdentifier: String {
+        switch self {
+        case .vietnamese:
+            return "vi"
+        case .english:
+            return "en"
+        case .chineseSimplified:
+            return "zh-Hans"
+        }
+    }
+
+    var locale: Locale {
+        Locale(identifier: localeIdentifier)
+    }
+
+    var title: String {
+        switch self {
+        case .vietnamese:
+            return "Tiếng Việt"
+        case .english:
+            return "English"
+        case .chineseSimplified:
+            return "简体中文"
+        }
+    }
+}
+
 enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
     case lunarCompact
     case calendarDayFilled
@@ -35,15 +104,15 @@ enum MenuBarIconStyle: String, Codable, CaseIterable, Sendable {
     var title: String {
         switch self {
         case .lunarCompact:
-            return "Âm lịch"
+            return L10n.tr("Âm lịch")
         case .calendarDayFilled:
-            return "Ngày tô"
+            return L10n.tr("Ngày tô")
         case .calendarDayOutlined:
-            return "Ngày viền"
+            return L10n.tr("Ngày viền")
         case .calendarSymbol:
-            return "Biểu tượng lịch"
+            return L10n.tr("Biểu tượng lịch")
         case .customFormat:
-            return "Tùy chỉnh"
+            return L10n.tr("Tùy chỉnh")
         }
     }
 }
@@ -107,6 +176,7 @@ struct AgendaItem: Identifiable, Hashable, Codable, Sendable {
 }
 
 struct UserSettings: Hashable, Codable, Sendable {
+    var language: AppLanguage = .vietnamese
     var showHolidays: Bool = true
     var showSolarTerms: Bool = true
     var showReminders: Bool = true
@@ -117,10 +187,13 @@ struct UserSettings: Hashable, Codable, Sendable {
     var allReminderCalendarsSelected: Bool = true
     var iconStyle: MenuBarIconStyle = .lunarCompact
     var customIconFormat: String = "EEE d MMM HH:mm"
+    var autoCheckForUpdates: Bool = true
+    var autoDownloadUpdates: Bool = false
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
+        case language
         case showHolidays
         case showSolarTerms
         case showReminders
@@ -131,10 +204,13 @@ struct UserSettings: Hashable, Codable, Sendable {
         case allReminderCalendarsSelected
         case iconStyle
         case customIconFormat
+        case autoCheckForUpdates
+        case autoDownloadUpdates
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .vietnamese
         showHolidays = try container.decodeIfPresent(Bool.self, forKey: .showHolidays) ?? true
         showSolarTerms = try container.decodeIfPresent(Bool.self, forKey: .showSolarTerms) ?? true
         showReminders = try container.decodeIfPresent(Bool.self, forKey: .showReminders) ?? true
@@ -148,6 +224,8 @@ struct UserSettings: Hashable, Codable, Sendable {
             ?? selectedReminderCalendarIDs.isEmpty
         iconStyle = try container.decodeIfPresent(MenuBarIconStyle.self, forKey: .iconStyle) ?? .lunarCompact
         customIconFormat = try container.decodeIfPresent(String.self, forKey: .customIconFormat) ?? "EEE d MMM HH:mm"
+        autoCheckForUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? true
+        autoDownloadUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? false
     }
 }
 

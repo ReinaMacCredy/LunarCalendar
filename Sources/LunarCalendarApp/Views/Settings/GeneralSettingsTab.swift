@@ -6,6 +6,11 @@ struct GeneralSettingsTab: View {
     var body: some View {
         Form {
             Section("Calendar Display") {
+                Picker("Language", selection: $model.settings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { language in
+                        Text(language.title).tag(language)
+                    }
+                }
                 Toggle("Show Holidays", isOn: $model.settings.showHolidays)
                 Toggle("Show Solar Terms", isOn: $model.settings.showSolarTerms)
                 Toggle("Show Reminders", isOn: $model.settings.showReminders)
@@ -32,6 +37,9 @@ struct GeneralSettingsTab: View {
             }
 
             Section("Updates") {
+                Toggle("Auto Check for Updates", isOn: $model.settings.autoCheckForUpdates)
+                Toggle("Auto Download Updates", isOn: $model.settings.autoDownloadUpdates)
+
                 updateRow
             }
         }
@@ -42,8 +50,8 @@ struct GeneralSettingsTab: View {
         HStack {
             switch model.updateStatus {
             case .idle:
-                Text("Check for updates")
-                    .foregroundStyle(.secondary)
+                Text("No recent update check")
+                .foregroundStyle(.secondary)
                 Spacer()
                 Button("Check Now") {
                     model.checkForUpdates()
@@ -60,25 +68,90 @@ struct GeneralSettingsTab: View {
             case .upToDate(let version):
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                Text("Up to date (v\(version))")
+                Text(
+                    String(
+                        format: L10n.tr("Up to date (v%@)", locale: model.appLocale, fallback: "Up to date (v%@)"),
+                        locale: model.appLocale,
+                        version
+                    )
+                )
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Dismiss") {
-                    model.dismissUpdateStatus()
+                Button("Check Again") {
+                    model.checkForUpdates()
                 }
                 .controlSize(.small)
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
 
-            case .available(let latestVersion, _):
+            case .available(let release):
                 Image(systemName: "arrow.down.circle.fill")
                     .foregroundStyle(.blue)
-                Text("v\(latestVersion) available")
+                Text(
+                    String(
+                        format: L10n.tr("v%@ available", locale: model.appLocale, fallback: "v%@ available"),
+                        locale: model.appLocale,
+                        release.latestVersion
+                    )
+                )
                 Spacer()
+                if release.asset != nil {
+                    Button(L10n.tr("Download and Relaunch", fallback: "Download and Relaunch")) {
+                        model.downloadAndRelaunchAvailableUpdate()
+                    }
+                    .controlSize(.small)
+                }
                 Button("View Release") {
                     model.openLatestRelease()
                 }
                 .controlSize(.small)
+
+            case .downloading(let latestVersion):
+                ProgressView()
+                    .controlSize(.small)
+                Text(
+                    String(
+                        format: L10n.tr("Downloading v%@…", locale: model.appLocale, fallback: "Downloading v%@…"),
+                        locale: model.appLocale,
+                        latestVersion
+                    )
+                )
+                    .foregroundStyle(.secondary)
+                Spacer()
+
+            case .downloaded(let downloaded):
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text(
+                    String(
+                        format: L10n.tr("Downloaded v%@", locale: model.appLocale, fallback: "Downloaded v%@"),
+                        locale: model.appLocale,
+                        downloaded.latestVersion
+                    )
+                )
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if downloaded.extractedAppURL != nil {
+                    Button("Relaunch") {
+                        model.relaunchFromDownloadedUpdate()
+                    }
+                    .controlSize(.small)
+                } else {
+                    Button("Open Installer") {
+                        model.openDownloadedInstaller()
+                    }
+                    .controlSize(.small)
+                }
+            case .installing(let latestVersion):
+                ProgressView()
+                    .controlSize(.small)
+                Text(
+                    String(
+                        format: L10n.tr("Relaunching v%@…", locale: model.appLocale, fallback: "Relaunching v%@…"),
+                        locale: model.appLocale,
+                        latestVersion
+                    )
+                )
+                    .foregroundStyle(.secondary)
+                Spacer()
 
             case .error(let message):
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -89,7 +162,6 @@ struct GeneralSettingsTab: View {
                     .truncationMode(.tail)
                 Spacer()
                 Button("Retry") {
-                    model.dismissUpdateStatus()
                     model.checkForUpdates()
                 }
                 .controlSize(.small)

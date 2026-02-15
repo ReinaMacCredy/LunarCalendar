@@ -6,6 +6,19 @@ struct CompactSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Language")
+                Spacer()
+                Picker("Language", selection: $model.settings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { language in
+                        Text(language.title).tag(language)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 130)
+            }
+
             Toggle("Show Holidays", isOn: $model.settings.showHolidays)
             Toggle("Show Solar Terms", isOn: $model.settings.showSolarTerms)
             Toggle("Show Reminders", isOn: $model.settings.showReminders)
@@ -44,5 +57,6 @@ struct CompactSettingsView: View {
         .onChange(of: model.settings) { _, _ in
             model.settingsDidChange()
         }
+        .environment(\.locale, model.appLocale)
     }
 }

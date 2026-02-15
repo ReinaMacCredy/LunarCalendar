@@ -37,7 +37,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build
 
-      - name: Create DMG
+      - name: Create ZIP and DMG
         run: |
           set -euo pipefail
 
@@ -56,6 +56,9 @@ jobs:
           rm -rf "$STAGING_DIR"
           mkdir -p "$STAGING_DIR"
 
+          ZIP_PATH="dist/${APP_NAME}-${BUILD_ID}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
+
           cp -R "$APP_PATH" "$STAGING_DIR/${APP_NAME}.app"
           ln -s /Applications "$STAGING_DIR/Applications"
 
@@ -67,13 +70,13 @@ jobs:
             -format UDZO \
             "$DMG_PATH"
 
-          echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
-
       - name: Upload DMG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: lunarcalendar-dmg
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/*.zip
           if-no-files-found: error
 
   release:
@@ -93,7 +96,9 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.dmg
+          files: |
+            dist/*.dmg
+            dist/*.zip
           generate_release_notes: true
 
   release-main:
@@ -117,7 +122,7 @@ jobs:
           set -euo pipefail
           TAG="main-latest"
           TITLE="Latest main build"
-          NOTES="Rolling prerelease with the latest DMG from branch main."
+          NOTES="Rolling prerelease with the latest DMG and ZIP from branch main."
 
           if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
             gh release edit "$TAG" \
@@ -134,4 +139,4 @@ jobs:
               --prerelease
           fi
 
-          gh release upload "$TAG" dist/*.dmg --clobber --repo "${GITHUB_REPOSITORY}"
+          gh release upload "$TAG" dist/*.dmg dist/*.zip --clobber --repo "${GITHUB_REPOSITORY}"
