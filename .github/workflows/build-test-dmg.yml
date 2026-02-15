@@ -26,15 +26,27 @@ jobs:
 
       - name: Build macOS App (Release)
         run: |
+          set -euo pipefail
+
+          XCODE_BUILD_ARGS=()
+          XCODE_BUILD_ARGS+=(CODE_SIGNING_ALLOWED=NO)
+          XCODE_BUILD_ARGS+=(CODE_SIGNING_REQUIRED=NO)
+          XCODE_BUILD_ARGS+=(CODE_SIGN_IDENTITY=)
+
+          if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+            RELEASE_VERSION="${GITHUB_REF_NAME#v}"
+            XCODE_BUILD_ARGS+=("MARKETING_VERSION=${RELEASE_VERSION}")
+            XCODE_BUILD_ARGS+=("CURRENT_PROJECT_VERSION=${GITHUB_RUN_NUMBER}")
+            echo "Building tagged release ${RELEASE_VERSION} (build ${GITHUB_RUN_NUMBER})"
+          fi
+
           xcodebuild \
             -project LunarCalendarApp.xcodeproj \
             -scheme LunarCalendarApp \
             -configuration Release \
             -destination "platform=macOS" \
             -derivedDataPath ./.xcodebuild \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            "${XCODE_BUILD_ARGS[@]}" \
             build
 
       - name: Create ZIP and DMG

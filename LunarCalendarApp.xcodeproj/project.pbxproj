@@ -339,6 +339,7 @@
 				CODE_SIGN_ENTITLEMENTS = LunarCalendarApp/LunarCalendarApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 104;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -348,6 +349,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.reinamaccredy.lunarcalendar;
 				PRODUCT_NAME = LunarCalendarApp;
 				SDKROOT = macosx;
@@ -425,6 +427,7 @@
 				CODE_SIGN_ENTITLEMENTS = LunarCalendarApp/LunarCalendarApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 104;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -434,6 +437,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.reinamaccredy.lunarcalendar;
 				PRODUCT_NAME = LunarCalendarApp;
 				SDKROOT = macosx;
