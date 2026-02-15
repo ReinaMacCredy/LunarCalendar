@@ -4,35 +4,36 @@ struct AgendaListView: View {
     let items: [AgendaItem]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Agenda")
-                    .font(.headline)
+                Text("Lịch trình")
+                    .font(.system(size: 13, weight: .semibold, design: .serif))
+                    .foregroundStyle(CalendarTheme.textPrimary)
                 Spacer()
                 Text("\(items.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.quinary, in: Capsule())
+                    .font(.system(size: 11))
+                    .foregroundStyle(CalendarTheme.textSecondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(CalendarTheme.warmSurface, in: Capsule())
             }
 
             if items.isEmpty {
-                Text("No events or reminders for the selected range.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
+                Text("Không có sự kiện hay nhắc nhở.")
+                    .font(.system(size: 12).italic())
+                    .foregroundStyle(CalendarTheme.textTertiary)
+                    .padding(.vertical, 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
+                    LazyVStack(alignment: .leading, spacing: 6) {
                         ForEach(items) { item in
                             AgendaRow(item: item)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: 210)
+                .frame(maxHeight: 160)
             }
         }
     }
@@ -42,53 +43,44 @@ private struct AgendaRow: View {
     let item: AgendaItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: iconName)
-                    .foregroundStyle(item.kind == .event ? .blue : .orange)
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(accentColor)
+                .frame(width: 3, height: 36)
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .font(.subheadline)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(CalendarTheme.textPrimary)
                     .strikethrough(item.isCompleted)
-                Spacer(minLength: 0)
-                Text(kindText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.quinary, in: Capsule())
-            }
+                    .lineLimit(1)
 
-            HStack {
-                Text(item.sourceTitle)
-                Spacer(minLength: 0)
-                Text(item.sortDate, format: .dateTime.month().day().hour().minute())
+                HStack(spacing: 4) {
+                    Text(item.sourceTitle)
+                    if let start = item.startDate {
+                        Text("·")
+                        Text(start, format: .dateTime.hour().minute())
+                    }
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(CalendarTheme.textSecondary)
+                .lineLimit(1)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .padding(.leading, 8)
+            .padding(.vertical, 6)
+
+            Spacer(minLength: 0)
         }
-        .padding(9)
-        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-        )
+        .padding(.horizontal, 8)
+        .background(CalendarTheme.warmSurface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private var iconName: String {
+    private var accentColor: Color {
         switch item.kind {
         case .event:
-            return "calendar"
+            return CalendarTheme.accentVermillion
         case .reminder:
-            return "checkmark.circle"
-        }
-    }
-
-    private var kindText: String {
-        switch item.kind {
-        case .event:
-            return "Event"
-        case .reminder:
-            return "Reminder"
+            return CalendarTheme.agendaDot
         }
     }
 }

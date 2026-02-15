@@ -11,7 +11,7 @@ struct CalendarPopoverView: View {
     @State private var jumpDay = Calendar.current.component(.day, from: .now)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             header
 
             MonthGridView(
@@ -19,25 +19,23 @@ struct CalendarPopoverView: View {
                 cells: model.monthCells,
                 onSelect: model.selectDate
             )
+
+            if !model.agendaItems.isEmpty {
+                Divider()
+                    .overlay(CalendarTheme.warmBorder)
+
+                AgendaListView(items: model.agendaItems)
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
-        .frame(width: 536, height: 660)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(nsColor: .windowBackgroundColor).opacity(0.97),
-                    Color(nsColor: .windowBackgroundColor).opacity(0.94),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            ),
-            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
-        )
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .frame(width: 480, height: 620)
+        .background(CalendarTheme.warmWhite)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(CalendarTheme.warmBorder.opacity(0.5), lineWidth: 0.5)
         )
         .task {
             await model.bootstrapIfNeeded()
@@ -59,27 +57,35 @@ struct CalendarPopoverView: View {
         }
     }
 
+    // MARK: - Header
+
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(monthHeaderTitle)
-                .font(.system(size: 56, weight: .semibold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(monthName)
+                    .font(.system(size: 22, weight: .semibold, design: .serif))
+                    .foregroundStyle(CalendarTheme.textPrimary)
+
+                Text(yearText)
+                    .font(.system(size: 13, weight: .regular, design: .serif))
+                    .foregroundStyle(CalendarTheme.textSecondary)
+            }
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 navButton(systemName: "chevron.left", action: model.showPreviousMonth)
 
                 Button {
                     syncJumpSelection(with: model.selectedDate)
                     isJumpDatePopoverPresented.toggle()
                 } label: {
-                    Image(systemName: "circle")
-                        .font(.system(size: 24, weight: .regular))
-                        .foregroundStyle(.primary.opacity(0.88))
+                    Circle()
+                        .fill(CalendarTheme.accentVermillion)
+                        .frame(width: 7, height: 7)
                 }
                 .buttonStyle(.plain)
+                .help("Hôm nay")
                 .popover(isPresented: $isJumpDatePopoverPresented, arrowEdge: .top) {
                     jumpDatePopover
                 }
@@ -87,9 +93,9 @@ struct CalendarPopoverView: View {
                 navButton(systemName: "chevron.right", action: model.showNextMonth)
 
                 Button(action: openSettingsWindow) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(0.78))
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(CalendarTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
                 .help("Cài đặt")
@@ -100,8 +106,8 @@ struct CalendarPopoverView: View {
     private func navButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.primary.opacity(0.88))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(CalendarTheme.textSecondary)
         }
         .buttonStyle(.plain)
     }
@@ -109,6 +115,26 @@ struct CalendarPopoverView: View {
     private func openSettingsWindow() {
         SettingsWindowPresenter.show(model: model)
     }
+
+    // MARK: - Header text
+
+    private var monthName: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: model.displayMonth)
+    }
+
+    private var yearText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy"
+        return formatter.string(from: model.displayMonth)
+    }
+
+    // MARK: - Jump date popover
 
     private var jumpDatePopover: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -189,14 +215,6 @@ struct CalendarPopoverView: View {
         }
         .padding(12)
         .frame(width: 350)
-    }
-
-    private var monthHeaderTitle: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "MMM yyyy"
-        return formatter.string(from: model.displayMonth)
     }
 
     private var jumpYearRange: ClosedRange<Int> {

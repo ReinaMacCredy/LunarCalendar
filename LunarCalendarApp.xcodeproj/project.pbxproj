@@ -21,6 +21,7 @@
 		7EB9FA2576618B5A279FE19F /* DateSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E47CE509BAE561FBC75F4DA2 /* DateSupport.swift */; };
 		9EF3F4F05614C3D7BB374EA2 /* CalendarPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4E4A359C288050840E259E /* CalendarPopoverView.swift */; };
 		BFDEE747316AAE55F31D2A75 /* solar_terms.json in Resources */ = {isa = PBXBuildFile; fileRef = D8F5078480404E0710E9930A /* solar_terms.json */; };
+		C92A0790BB53A56C60C4DDED /* CalendarTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 442836C2F009251D14C80FE4 /* CalendarTheme.swift */; };
 		D0B66C40E2594A11EA240D50 /* SourcesSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FB6619EF8A382D59ACBB41B /* SourcesSettingsTab.swift */; };
 		D2A74565FBE713E6DC33456A /* GeneralSettingsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0345A0A732AE7F700E60B74 /* GeneralSettingsTab.swift */; };
 		DA252FE0C28143EA90AC2F6D /* CachedAgendaItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7914BBE2F3F98D17C715F4 /* CachedAgendaItem.swift */; };
@@ -36,6 +37,7 @@
 		3A64A28B0A7F98C61DCCE832 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		3FB6619EF8A382D59ACBB41B /* SourcesSettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesSettingsTab.swift; sourceTree = "<group>"; };
 		43009B2601A54FDDEB3EF414 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		442836C2F009251D14C80FE4 /* CalendarTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarTheme.swift; sourceTree = "<group>"; };
 		4D43CCBC2CD8F223D7A4A042 /* LunarCalendarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunarCalendarApp.swift; sourceTree = "<group>"; };
 		5210F773DFD11EEE9F833C9E /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		5B4E4A359C288050840E259E /* CalendarPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarPopoverView.swift; sourceTree = "<group>"; };
@@ -64,6 +66,7 @@
 				7FF9098F7AF909833087575E /* AgendaListView.swift */,
 				E9FB3A28BE076B236B564623 /* AppSettingsView.swift */,
 				5B4E4A359C288050840E259E /* CalendarPopoverView.swift */,
+				442836C2F009251D14C80FE4 /* CalendarTheme.swift */,
 				CB44B19F08FD3B992148A5DD /* MonthGridView.swift */,
 				FDE5FC5BD02BA96B44C82AD0 /* SettingsContentView.swift */,
 				7B85ABBF2C4A61D1676AD215 /* SettingsSectionView.swift */,
@@ -221,6 +224,7 @@
 				DB6D6AFD6E7BF52623103F41 /* AppState.swift in Sources */,
 				DA252FE0C28143EA90AC2F6D /* CachedAgendaItem.swift in Sources */,
 				9EF3F4F05614C3D7BB374EA2 /* CalendarPopoverView.swift in Sources */,
+				C92A0790BB53A56C60C4DDED /* CalendarTheme.swift in Sources */,
 				7EB9FA2576618B5A279FE19F /* DateSupport.swift in Sources */,
 				3628F365A83EC147A8023997 /* EventKitService.swift in Sources */,
 				D2A74565FBE713E6DC33456A /* GeneralSettingsTab.swift in Sources */,
