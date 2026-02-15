@@ -6,7 +6,7 @@ struct SettingsSectionView: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $model.showSettings) {
-            SettingsContentView(model: model, compact: true)
+            CompactSettingsView(model: model)
         } label: {
             Label("Settings", systemImage: "slider.horizontal.3")
                 .font(.headline)

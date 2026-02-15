@@ -29,7 +29,7 @@ enum SettingsWindowPresenter {
             let hosting = NSHostingController(rootView: settingsView)
             let window = NSWindow(contentViewController: hosting)
             window.title = "Cài đặt"
-            window.setContentSize(NSSize(width: 760, height: 680))
+            window.setContentSize(NSSize(width: 620, height: 480))
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
             windowController = NSWindowController(window: window)
