@@ -1,0 +1,14 @@
+# Xcode
+.xcodebuild/
+xcuserdata/
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Distribution
+dist/

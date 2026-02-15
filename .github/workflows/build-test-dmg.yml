@@ -1,0 +1,97 @@
+name: Build, Test, and Package DMG
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-test-dmg:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode Version
+        run: xcodebuild -version
+
+      - name: Run Tests
+        run: swift test
+
+      - name: Build macOS App (Release)
+        run: |
+          xcodebuild \
+            -project LunarCalendarApp.xcodeproj \
+            -scheme LunarCalendarApp \
+            -configuration Release \
+            -destination "platform=macOS" \
+            -derivedDataPath ./.xcodebuild \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Create DMG
+        run: |
+          set -euo pipefail
+
+          APP_PATH="$(find .xcodebuild/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found in Release output."
+            exit 1
+          fi
+
+          APP_NAME="$(basename "$APP_PATH" .app)"
+          REF_SAFE="$(echo "${GITHUB_REF_NAME:-dev}" | tr '/:@ ' '-')"
+          BUILD_ID="${REF_SAFE}-${GITHUB_SHA::7}"
+
+          mkdir -p dist
+          STAGING_DIR="dist/dmg-stage"
+          rm -rf "$STAGING_DIR"
+          mkdir -p "$STAGING_DIR"
+
+          cp -R "$APP_PATH" "$STAGING_DIR/${APP_NAME}.app"
+          ln -s /Applications "$STAGING_DIR/Applications"
+
+          DMG_PATH="dist/${APP_NAME}-${BUILD_ID}.dmg"
+          hdiutil create \
+            -volname "$APP_NAME" \
+            -srcfolder "$STAGING_DIR" \
+            -ov \
+            -format UDZO \
+            "$DMG_PATH"
+
+          echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lunarcalendar-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-test-dmg
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download DMG Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lunarcalendar-dmg
+          path: dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
+          generate_release_notes: true
