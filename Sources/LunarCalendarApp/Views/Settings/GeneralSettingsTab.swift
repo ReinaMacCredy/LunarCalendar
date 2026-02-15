@@ -77,10 +77,6 @@ struct GeneralSettingsTab: View {
                 )
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Check Again") {
-                    model.checkForUpdates()
-                }
-                .controlSize(.small)
 
             case .available(let release):
                 Image(systemName: "arrow.down.circle.fill")

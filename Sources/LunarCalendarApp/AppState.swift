@@ -36,6 +36,8 @@ final class AppState {
     private var autoUpdateTask: Task<Void, Never>?
     private var refreshNonce: Int = 0
     private var saveSettingsTask: Task<Void, Never>?
+    private var updateStatusResetTask: Task<Void, Never>?
+    private let upToDateStatusDisplayDuration: Duration
 
     init(
         lunarService: LunarService = LunarService(),
@@ -43,7 +45,8 @@ final class AppState {
         settingsStore: SettingsStore = SettingsStore(),
         cacheStore: AgendaCacheStore = AgendaCacheStore(),
         launchAtLoginManager: LaunchAtLoginManager = LaunchAtLoginManager(),
-        updateService: UpdateService = UpdateService()
+        updateService: UpdateService = UpdateService(),
+        upToDateStatusDisplayDuration: Duration = .seconds(10)
     ) {
         let initialLanguage = L10n.appLanguage
         let now = Date()
@@ -62,6 +65,7 @@ final class AppState {
         self.cacheStore = cacheStore
         self.launchAtLoginManager = launchAtLoginManager
         self.updateService = updateService
+        self.upToDateStatusDisplayDuration = upToDateStatusDisplayDuration
         self.settings.language = initialLanguage
     }
 
@@ -485,6 +489,7 @@ final class AppState {
         if isAutomatic, settings.autoCheckForUpdates == false {
             return
         }
+        cancelUpdateStatusResetTask()
         updateStatus = .checking
 
         Task { [weak self] in
@@ -493,19 +498,25 @@ final class AppState {
             }
             do {
                 let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
-                let result = try await updateService.checkForUpdate(currentVersion: currentVersion)
-
-                switch result {
-                case .upToDate(let version):
-                    updateStatus = .upToDate(version)
-                case .available(let release):
-                    updateStatus = .available(release)
-                    if settings.autoDownloadUpdates {
-                        downloadAndRelaunchAvailableUpdate()
-                    }
-                }
+                let result = try await self.updateService.checkForUpdate(currentVersion: currentVersion)
+                self.applyUpdateCheckResult(result)
             } catch {
-                updateStatus = .error(error.localizedDescription)
+                self.cancelUpdateStatusResetTask()
+                self.updateStatus = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    func applyUpdateCheckResult(_ result: UpdateCheckResult) {
+        switch result {
+        case .upToDate(let version):
+            updateStatus = .upToDate(version)
+            scheduleUpToDateStatusReset()
+        case .available(let release):
+            cancelUpdateStatusResetTask()
+            updateStatus = .available(release)
+            if settings.autoDownloadUpdates {
+                downloadAndRelaunchAvailableUpdate()
             }
         }
     }
@@ -531,6 +542,7 @@ final class AppState {
     }
 
     func downloadAvailableUpdate(autoRelaunch: Bool = false) {
+        cancelUpdateStatusResetTask()
         guard case .available(let release) = updateStatus else {
             return
         }
@@ -563,6 +575,7 @@ final class AppState {
     }
 
     func relaunchFromDownloadedUpdate() {
+        cancelUpdateStatusResetTask()
         guard case .downloaded(let downloaded) = updateStatus else {
             return
         }
@@ -632,6 +645,7 @@ final class AppState {
     }
 
     func dismissUpdateStatus() {
+        cancelUpdateStatusResetTask()
         updateStatus = .idle
     }
 
@@ -665,6 +679,31 @@ final class AppState {
         }
     }
 
+    private func scheduleUpToDateStatusReset() {
+        cancelUpdateStatusResetTask()
+        updateStatusResetTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                self.updateStatusResetTask = nil
+            }
+            try? await Task.sleep(for: self.upToDateStatusDisplayDuration)
+            guard !Task.isCancelled else {
+                return
+            }
+            guard case .upToDate = self.updateStatus else {
+                return
+            }
+            self.updateStatus = .idle
+        }
+    }
+
+    private func cancelUpdateStatusResetTask() {
+        updateStatusResetTask?.cancel()
+        updateStatusResetTask = nil
+    }
+
     private func applyLocalization() {
         L10n.setLanguage(settings.language)
         calendar.locale = appLocale
@@ -690,6 +729,6 @@ final class AppState {
         cyclicalYearFormatter.dateFormat = "U"
         let yearName = cyclicalYearFormatter.string(from: date)
 
-        return "\(L10n.tr("ÂL", locale: locale, fallback: "ÂL")) \(day)/\(month)\(leapMarker) \(yearName)"
+        return "\(day)/\(month)\(leapMarker) \(yearName)"
     }
 }
