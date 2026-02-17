@@ -127,6 +127,22 @@ final class AppStateBehaviorTests: XCTestCase {
         }
     }
 
+    func testSettingsStorePersistsPendingDownloadedUpdate() async {
+        let suiteName = makeIsolatedDefaultsSuiteName()
+        let settingsStore = SettingsStore(suiteName: suiteName)
+
+        var settings = UserSettings()
+        settings.pendingDownloadedUpdate = DownloadedUpdate(
+            latestVersion: "1.2.3",
+            filePath: "/tmp/lunar-calendar-1.2.3.zip",
+            extractedAppPath: "/tmp/LunarCalendar.app"
+        )
+        await settingsStore.save(settings)
+
+        let persisted = await settingsStore.load()
+        XCTAssertEqual(persisted.pendingDownloadedUpdate, settings.pendingDownloadedUpdate)
+    }
+
     private func makeIsolatedDefaultsSuiteName(file: StaticString = #filePath, line: UInt = #line) -> String {
         let suiteName = "AppStateBehaviorTests.\(UUID().uuidString)"
         guard UserDefaults(suiteName: suiteName) != nil else {

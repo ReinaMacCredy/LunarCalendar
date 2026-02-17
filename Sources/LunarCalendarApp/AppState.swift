@@ -143,10 +143,11 @@ final class AppState {
             agendaItems = cached
         }
 
+        let restoredPendingUpdate = restorePendingDownloadedUpdateIfNeeded()
         bootstrapDone = true
         configureAutoUpdatePolling()
         refresh(reason: .startup)
-        if settings.autoCheckForUpdates {
+        if settings.autoCheckForUpdates, !restoredPendingUpdate {
             checkForUpdates(isAutomatic: true)
         }
     }
@@ -492,6 +493,9 @@ final class AppState {
         if isAutomatic, settings.autoCheckForUpdates == false {
             return
         }
+        if isAutomatic, hasPendingDownloadedUpdate {
+            return
+        }
         cancelUpdateStatusResetTask()
         updateStatus = .checking
 
@@ -523,7 +527,7 @@ final class AppState {
             cancelUpdateStatusResetTask()
             updateStatus = .available(release)
             if settings.autoDownloadUpdates {
-                downloadAndRelaunchAvailableUpdate()
+                downloadAvailableUpdate(showProgressWindow: false)
                 return
             }
 
@@ -558,10 +562,10 @@ final class AppState {
     }
 
     func downloadAndRelaunchAvailableUpdate() {
-        downloadAvailableUpdate(autoRelaunch: true)
+        downloadAvailableUpdate(autoRelaunch: true, showProgressWindow: true)
     }
 
-    func downloadAvailableUpdate(autoRelaunch: Bool = false) {
+    func downloadAvailableUpdate(autoRelaunch: Bool = false, showProgressWindow: Bool = true) {
         cancelUpdateStatusResetTask()
         guard case .available(let release) = updateStatus else {
             return
@@ -580,7 +584,11 @@ final class AppState {
         downloadBytesReceived = 0
         downloadTotalBytes = 0
         updateStatus = .downloading(latestVersion: release.latestVersion)
-        UpdateProgressWindowPresenter.show(model: self)
+        if showProgressWindow {
+            UpdateProgressWindowPresenter.show(model: self)
+        } else {
+            UpdateProgressWindowPresenter.dismiss()
+        }
 
         downloadTask = Task { [weak self] in
             guard let self else {
@@ -595,8 +603,11 @@ final class AppState {
                 }
                 updateStatus = .downloaded(downloaded)
                 downloadBytesReceived = downloadTotalBytes
+                persistPendingDownloadedUpdate(downloaded)
                 if autoRelaunch {
                     relaunchFromDownloadedUpdate()
+                } else {
+                    UpdateProgressWindowPresenter.show(model: self)
                 }
             } catch is CancellationError {
                 // cancelled by user — status already reset by cancelDownload()
@@ -624,7 +635,8 @@ final class AppState {
         guard case .downloaded(let downloaded) = updateStatus else {
             return
         }
-        guard let appURL = downloaded.extractedAppURL else {
+        guard let extractedAppURL = downloaded.extractedAppURL else {
+            // DMG fallback — open in Finder for manual install
             NSWorkspace.shared.open(downloaded.fileURL)
             updateStatus = .error(
                 L10n.tr(
@@ -637,47 +649,36 @@ final class AppState {
         }
 
         updateStatus = .installing(downloaded.latestVersion)
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        configuration.createsNewApplicationInstance = true
-        let currentPID = ProcessInfo.processInfo.processIdentifier
-        let bundleIdentifier = Bundle.main.bundleIdentifier
-        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { [weak self] _, error in
-            Task { @MainActor [weak self] in
-                guard let self else {
-                    return
-                }
-                if let error {
-                    self.updateStatus = .error(error.localizedDescription)
-                    return
-                }
-                guard let bundleIdentifier else {
-                    NSApp.terminate(nil)
-                    return
-                }
+        let runningBundleURL = Bundle.main.bundleURL
 
-                Task { @MainActor [weak self] in
-                    guard let self else {
-                        return
-                    }
-                    let deadline = Date().addingTimeInterval(4)
-                    while Date() < deadline {
-                        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
-                        let hasNewInstance = running.contains { $0.processIdentifier != currentPID }
-                        if hasNewInstance {
-                            NSApp.terminate(nil)
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+            do {
+                let installedURL = try await updateService.installUpdate(
+                    extractedAppURL: extractedAppURL,
+                    runningBundleURL: runningBundleURL
+                )
+                await updateService.cleanupDownloadedFiles(
+                    zipPath: downloaded.filePath,
+                    extractedAppPath: downloaded.extractedAppPath
+                )
+                clearPendingDownloadedUpdate()
+
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                NSWorkspace.shared.openApplication(at: installedURL, configuration: configuration) { [weak self] _, error in
+                    Task { @MainActor [weak self] in
+                        if let error {
+                            self?.updateStatus = .error(error.localizedDescription)
                             return
                         }
-                        try? await Task.sleep(for: .milliseconds(200))
+                        NSApp.terminate(nil)
                     }
-
-                    self.updateStatus = .error(
-                        L10n.tr(
-                            "Downloaded app did not relaunch automatically. Please use Relaunch again or open installer manually.",
-                            fallback: "Downloaded app did not relaunch automatically. Please use Relaunch again or open installer manually."
-                        )
-                    )
                 }
+            } catch {
+                updateStatus = .error(error.localizedDescription)
             }
         }
     }
@@ -699,6 +700,53 @@ final class AppState {
             return true
         }
         return settings.skippedUpdateVersion != release.latestVersion
+    }
+
+    private var hasPendingDownloadedUpdate: Bool {
+        settings.pendingDownloadedUpdate != nil
+    }
+
+    private func restorePendingDownloadedUpdateIfNeeded() -> Bool {
+        guard let downloaded = settings.pendingDownloadedUpdate else {
+            return false
+        }
+        if downloaded.latestVersion.compare(currentAppVersion, options: .numeric) != .orderedDescending {
+            clearPendingDownloadedUpdate()
+            return false
+        }
+        guard isPersistedUpdateUsable(downloaded) else {
+            clearPendingDownloadedUpdate()
+            return false
+        }
+
+        cancelUpdateStatusResetTask()
+        updateStatus = .downloaded(downloaded)
+        UpdateProgressWindowPresenter.show(model: self)
+        return true
+    }
+
+    private func persistPendingDownloadedUpdate(_ downloaded: DownloadedUpdate) {
+        settings.pendingDownloadedUpdate = downloaded
+        persistSettingsSnapshot()
+    }
+
+    private func clearPendingDownloadedUpdate() {
+        guard settings.pendingDownloadedUpdate != nil else {
+            return
+        }
+        settings.pendingDownloadedUpdate = nil
+        persistSettingsSnapshot()
+    }
+
+    private func isPersistedUpdateUsable(_ downloaded: DownloadedUpdate) -> Bool {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: downloaded.filePath) else {
+            return false
+        }
+        guard let extractedAppPath = downloaded.extractedAppPath else {
+            return true
+        }
+        return fileManager.fileExists(atPath: extractedAppPath)
     }
 
     private func presentUpdatePrompt(for release: UpdateRelease, currentVersion: String) {
@@ -733,7 +781,13 @@ final class AppState {
                     return
                 }
                 await MainActor.run {
-                    self?.checkForUpdates(isAutomatic: true)
+                    guard let self else {
+                        return
+                    }
+                    guard !self.hasPendingDownloadedUpdate else {
+                        return
+                    }
+                    self.checkForUpdates(isAutomatic: true)
                 }
             }
         }

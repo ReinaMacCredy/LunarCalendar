@@ -13,6 +13,8 @@ enum UpdateServiceError: LocalizedError {
     case downloadFailed
     case extractionFailed(Int32)
     case appBundleNotFound
+    case installationFailed(String)
+    case readOnlyVolume
 
     var errorDescription: String? {
         switch self {
@@ -53,6 +55,20 @@ enum UpdateServiceError: LocalizedError {
             return L10n.tr(
                 "Extracted update does not contain an app bundle.",
                 fallback: "Extracted update does not contain an app bundle."
+            )
+        case .installationFailed(let detail):
+            return String(
+                format: L10n.tr(
+                    "Failed to install update: %@",
+                    fallback: "Failed to install update: %@"
+                ),
+                locale: L10n.locale,
+                detail
+            )
+        case .readOnlyVolume:
+            return L10n.tr(
+                "Cannot update: the app is on a read-only volume. Move it to Applications first.",
+                fallback: "Cannot update: the app is on a read-only volume. Move it to Applications first."
             )
         }
     }
@@ -178,6 +194,53 @@ actor UpdateService {
             filePath: destinationURL.path,
             extractedAppPath: extractedAppPath
         )
+    }
+
+    func installUpdate(extractedAppURL: URL, runningBundleURL: URL) throws -> URL {
+        let parentDirectory = runningBundleURL.deletingLastPathComponent()
+        guard fileManager.isWritableFile(atPath: parentDirectory.path) else {
+            throw UpdateServiceError.readOnlyVolume
+        }
+
+        let bundleName = runningBundleURL.lastPathComponent
+        let backupURL = parentDirectory.appendingPathComponent(bundleName + ".old")
+
+        // Remove stale backup if present
+        if fileManager.fileExists(atPath: backupURL.path) {
+            try? fileManager.removeItem(at: backupURL)
+        }
+
+        // Move current bundle to backup
+        do {
+            try fileManager.moveItem(at: runningBundleURL, to: backupURL)
+        } catch {
+            throw UpdateServiceError.installationFailed("Backup failed: \(error.localizedDescription)")
+        }
+
+        // Copy extracted app to original location
+        do {
+            try fileManager.copyItem(at: extractedAppURL, to: runningBundleURL)
+        } catch {
+            // Rollback: restore backup
+            try? fileManager.moveItem(at: backupURL, to: runningBundleURL)
+            throw UpdateServiceError.installationFailed("Copy failed: \(error.localizedDescription)")
+        }
+
+        // Success — remove backup
+        try? fileManager.removeItem(at: backupURL)
+        return runningBundleURL
+    }
+
+    func cleanupDownloadedFiles(zipPath: String, extractedAppPath: String?) {
+        try? fileManager.removeItem(atPath: zipPath)
+        if let extractedAppPath {
+            let extractedURL = URL(fileURLWithPath: extractedAppPath)
+            // Only remove the extraction directory if it's inside our updates directory
+            let extractionDirectory = extractedURL.deletingLastPathComponent()
+            if extractionDirectory.path.hasPrefix(updatesDirectory.path) {
+                try? fileManager.removeItem(at: extractionDirectory)
+            }
+        }
     }
 
     private func normalizeVersionTag(_ tag: String) -> String {

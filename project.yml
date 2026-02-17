@@ -18,19 +18,18 @@ targets:
       properties:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        NSCalendarsFullAccessUsageDescription: LunarCalendarApp needs Calendar access to show your events in the agenda.
-        NSRemindersFullAccessUsageDescription: LunarCalendarApp needs Reminders access to show your reminders in the agenda.
+        NSCalendarsFullAccessUsageDescription: LunarCalendar needs Calendar access to show your events in the agenda.
+        NSRemindersFullAccessUsageDescription: LunarCalendar needs Reminders access to show your reminders in the agenda.
     entitlements:
       path: LunarCalendarApp/LunarCalendarApp.entitlements
       properties:
-        com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.personal-information.calendars: true
         com.apple.security.personal-information.reminders: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.reinamaccredy.lunarcalendar
-        PRODUCT_NAME: LunarCalendarApp
+        PRODUCT_NAME: LunarCalendar
         MARKETING_VERSION: 1.0.4
         CURRENT_PROJECT_VERSION: 104
         GENERATE_INFOPLIST_FILE: NO

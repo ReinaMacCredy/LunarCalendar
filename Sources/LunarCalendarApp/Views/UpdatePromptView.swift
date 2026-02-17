@@ -60,7 +60,7 @@ struct UpdatePromptView: View {
     }
 
     private var autoDownloadToggle: some View {
-        Toggle("Automatically download and install updates in the future", isOn: $autoDownloadUpdates)
+        Toggle("Automatically download updates in the future", isOn: $autoDownloadUpdates)
             .toggleStyle(.checkbox)
             .frame(maxWidth: .infinity, alignment: .leading)
     }

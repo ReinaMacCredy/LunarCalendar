@@ -10,7 +10,9 @@ struct UpdateProgressView: View {
                 .frame(width: 64, height: 64)
 
             VStack(alignment: .leading, spacing: 8) {
-                if isDownloaded {
+                if isInstalling {
+                    installingContent
+                } else if isDownloaded {
                     readyToInstallContent
                 } else {
                     downloadingContent
@@ -20,6 +22,13 @@ struct UpdateProgressView: View {
         }
         .padding(20)
         .frame(width: 380)
+    }
+
+    private var isInstalling: Bool {
+        if case .installing = model.updateStatus {
+            return true
+        }
+        return false
     }
 
     private var isDownloaded: Bool {
@@ -47,6 +56,20 @@ struct UpdateProgressView: View {
                     model.cancelDownload()
                 }
             }
+        }
+    }
+
+    private var installingContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Installing update…")
+                .font(.headline)
+
+            ProgressView()
+                .progressViewStyle(.linear)
+
+            Text("Please wait")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         }
     }
 

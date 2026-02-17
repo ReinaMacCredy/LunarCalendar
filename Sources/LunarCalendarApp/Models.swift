@@ -22,7 +22,7 @@ struct UpdateRelease: Hashable, Sendable {
     let asset: UpdateAsset?
 }
 
-struct DownloadedUpdate: Hashable, Sendable {
+struct DownloadedUpdate: Hashable, Codable, Sendable {
     let latestVersion: String
     let filePath: String
     let extractedAppPath: String?
@@ -192,6 +192,7 @@ struct UserSettings: Hashable, Codable, Sendable {
     var autoCheckForUpdates: Bool = true
     var autoDownloadUpdates: Bool = false
     var skippedUpdateVersion: String?
+    var pendingDownloadedUpdate: DownloadedUpdate?
 
     init() {}
 
@@ -210,6 +211,7 @@ struct UserSettings: Hashable, Codable, Sendable {
         case autoCheckForUpdates
         case autoDownloadUpdates
         case skippedUpdateVersion
+        case pendingDownloadedUpdate
     }
 
     init(from decoder: Decoder) throws {
@@ -231,6 +233,7 @@ struct UserSettings: Hashable, Codable, Sendable {
         autoCheckForUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? true
         autoDownloadUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? false
         skippedUpdateVersion = try container.decodeIfPresent(String.self, forKey: .skippedUpdateVersion)
+        pendingDownloadedUpdate = try container.decodeIfPresent(DownloadedUpdate.self, forKey: .pendingDownloadedUpdate)
     }
 }
 
