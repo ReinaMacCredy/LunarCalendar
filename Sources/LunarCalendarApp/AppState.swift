@@ -32,6 +32,7 @@ final class AppState {
     private let legacyCustomFormatValue = "EEE d MMM HH:mm"
     private var bootstrapDone = false
     private var bootstrapTask: Task<Void, Never>?
+    private var downloadTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var autoUpdateTask: Task<Void, Never>?
     private var refreshNonce: Int = 0
@@ -405,11 +406,7 @@ final class AppState {
 
     func settingsDidChange() {
         applyLocalization()
-        saveSettingsTask?.cancel()
-        let snapshot = settings
-        saveSettingsTask = Task {
-            await settingsStore.save(snapshot)
-        }
+        persistSettingsSnapshot()
         configureAutoUpdatePolling()
         refresh(reason: .settingsChanged)
     }
@@ -480,7 +477,13 @@ final class AppState {
         }
     }
 
+    private var currentAppVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
+    }
+
     var updateStatus: UpdateStatus = .idle
+    var downloadBytesReceived: Int64 = 0
+    var downloadTotalBytes: Int64 = 0
 
     func checkForUpdates(isAutomatic: Bool = false) {
         guard !isUpdateBusy else {
@@ -497,9 +500,9 @@ final class AppState {
                 return
             }
             do {
-                let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0"
+                let currentVersion = self.currentAppVersion
                 let result = try await self.updateService.checkForUpdate(currentVersion: currentVersion)
-                self.applyUpdateCheckResult(result)
+                self.applyUpdateCheckResult(result, isAutomatic: isAutomatic, currentVersion: currentVersion)
             } catch {
                 self.cancelUpdateStatusResetTask()
                 self.updateStatus = .error(error.localizedDescription)
@@ -507,7 +510,11 @@ final class AppState {
         }
     }
 
-    func applyUpdateCheckResult(_ result: UpdateCheckResult) {
+    func applyUpdateCheckResult(
+        _ result: UpdateCheckResult,
+        isAutomatic: Bool = false,
+        currentVersion: String? = nil
+    ) {
         switch result {
         case .upToDate(let version):
             updateStatus = .upToDate(version)
@@ -517,7 +524,20 @@ final class AppState {
             updateStatus = .available(release)
             if settings.autoDownloadUpdates {
                 downloadAndRelaunchAvailableUpdate()
+                return
             }
+
+            guard shouldPresentUpdatePrompt(for: release, isAutomatic: isAutomatic) else {
+                if isAutomatic {
+                    updateStatus = .idle
+                }
+                return
+            }
+
+            presentUpdatePrompt(
+                for: release,
+                currentVersion: currentVersion ?? self.currentAppVersion
+            )
         }
     }
 
@@ -557,20 +577,45 @@ final class AppState {
             return
         }
 
+        downloadBytesReceived = 0
+        downloadTotalBytes = 0
         updateStatus = .downloading(latestVersion: release.latestVersion)
-        Task { [weak self] in
+        UpdateProgressWindowPresenter.show(model: self)
+
+        downloadTask = Task { [weak self] in
             guard let self else {
                 return
             }
             do {
-                let downloaded = try await updateService.downloadUpdate(release)
+                let downloaded = try await updateService.downloadUpdate(release) { bytesReceived, totalBytes in
+                    Task { @MainActor [weak self] in
+                        self?.downloadBytesReceived = bytesReceived
+                        self?.downloadTotalBytes = totalBytes
+                    }
+                }
                 updateStatus = .downloaded(downloaded)
+                downloadBytesReceived = downloadTotalBytes
                 if autoRelaunch {
                     relaunchFromDownloadedUpdate()
                 }
+            } catch is CancellationError {
+                // cancelled by user — status already reset by cancelDownload()
             } catch {
+                UpdateProgressWindowPresenter.dismiss()
                 updateStatus = .error(error.localizedDescription)
             }
+        }
+    }
+
+    func cancelDownload() {
+        downloadTask?.cancel()
+        downloadTask = nil
+        UpdateProgressWindowPresenter.dismiss()
+        downloadBytesReceived = 0
+        downloadTotalBytes = 0
+        // Restore to available if we have the release info
+        if case .downloading = updateStatus {
+            updateStatus = .idle
         }
     }
 
@@ -649,6 +694,21 @@ final class AppState {
         updateStatus = .idle
     }
 
+    private func shouldPresentUpdatePrompt(for release: UpdateRelease, isAutomatic: Bool) -> Bool {
+        if !isAutomatic {
+            return true
+        }
+        return settings.skippedUpdateVersion != release.latestVersion
+    }
+
+    private func presentUpdatePrompt(for release: UpdateRelease, currentVersion: String) {
+        UpdateWindowPresenter.show(
+            model: self,
+            release: release,
+            currentVersion: currentVersion
+        )
+    }
+
     private var isUpdateBusy: Bool {
         switch updateStatus {
         case .checking, .downloading, .installing:
@@ -702,6 +762,14 @@ final class AppState {
     private func cancelUpdateStatusResetTask() {
         updateStatusResetTask?.cancel()
         updateStatusResetTask = nil
+    }
+
+    private func persistSettingsSnapshot() {
+        saveSettingsTask?.cancel()
+        let snapshot = settings
+        saveSettingsTask = Task {
+            await settingsStore.save(snapshot)
+        }
     }
 
     private func applyLocalization() {

@@ -43,6 +43,97 @@ enum SettingsWindowPresenter {
 }
 
 @MainActor
+enum UpdateWindowPresenter {
+    private static var windowController: NSWindowController?
+
+    static func show(model: AppState, release: UpdateRelease, currentVersion: String) {
+        let promptView = UpdatePromptView(
+            release: release,
+            currentVersion: currentVersion,
+            autoDownloadUpdates: Binding(
+                get: { model.settings.autoDownloadUpdates },
+                set: { newValue in
+                    if model.settings.autoDownloadUpdates != newValue {
+                        model.settings.autoDownloadUpdates = newValue
+                        model.settingsDidChange()
+                    }
+                }
+            ),
+            onInstall: {
+                dismiss()
+                if model.settings.skippedUpdateVersion == release.latestVersion {
+                    model.settings.skippedUpdateVersion = nil
+                    model.settingsDidChange()
+                }
+                model.downloadAndRelaunchAvailableUpdate()
+            },
+            onSkip: {
+                dismiss()
+                model.settings.skippedUpdateVersion = release.latestVersion
+                model.settingsDidChange()
+                model.updateStatus = .idle
+            },
+            onRemindLater: {
+                dismiss()
+            }
+        )
+
+        if let existing = windowController?.window, existing.isVisible {
+            if let hosting = windowController?.contentViewController as? NSHostingController<UpdatePromptView> {
+                hosting.rootView = promptView
+            }
+        } else {
+            let hosting = NSHostingController(rootView: promptView)
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "LunarCalendar Update"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            windowController = NSWindowController(window: window)
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        windowController?.showWindow(nil)
+        windowController?.window?.center()
+        windowController?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    static func dismiss() {
+        windowController?.window?.close()
+    }
+}
+
+@MainActor
+enum UpdateProgressWindowPresenter {
+    private static var windowController: NSWindowController?
+
+    static func show(model: AppState) {
+        let progressView = UpdateProgressView(model: model)
+
+        if let existing = windowController?.window, existing.isVisible {
+            if let hosting = windowController?.contentViewController as? NSHostingController<UpdateProgressView> {
+                hosting.rootView = progressView
+            }
+        } else {
+            let hosting = NSHostingController(rootView: progressView)
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "Updating LunarCalendar"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            windowController = NSWindowController(window: window)
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        windowController?.showWindow(nil)
+        windowController?.window?.center()
+        windowController?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    static func dismiss() {
+        windowController?.window?.close()
+    }
+}
+
+@MainActor
 final class StatusPopoverController: NSObject {
     private let model: AppState
     private let popover = NSPopover()

@@ -15,6 +15,8 @@ struct UpdateAsset: Hashable, Sendable {
 
 struct UpdateRelease: Hashable, Sendable {
     let latestVersion: String
+    let title: String?
+    let releaseNotes: String?
     let releaseURL: String?
     let publishedAt: Date?
     let asset: UpdateAsset?
@@ -189,6 +191,7 @@ struct UserSettings: Hashable, Codable, Sendable {
     var customIconFormat: String = "EEE d MMM HH:mm"
     var autoCheckForUpdates: Bool = true
     var autoDownloadUpdates: Bool = false
+    var skippedUpdateVersion: String?
 
     init() {}
 
@@ -206,6 +209,7 @@ struct UserSettings: Hashable, Codable, Sendable {
         case customIconFormat
         case autoCheckForUpdates
         case autoDownloadUpdates
+        case skippedUpdateVersion
     }
 
     init(from decoder: Decoder) throws {
@@ -226,6 +230,7 @@ struct UserSettings: Hashable, Codable, Sendable {
         customIconFormat = try container.decodeIfPresent(String.self, forKey: .customIconFormat) ?? "EEE d MMM HH:mm"
         autoCheckForUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoCheckForUpdates) ?? true
         autoDownloadUpdates = try container.decodeIfPresent(Bool.self, forKey: .autoDownloadUpdates) ?? false
+        skippedUpdateVersion = try container.decodeIfPresent(String.self, forKey: .skippedUpdateVersion)
     }
 }
 

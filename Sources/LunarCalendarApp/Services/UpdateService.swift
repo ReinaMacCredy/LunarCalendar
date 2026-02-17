@@ -110,6 +110,8 @@ actor UpdateService {
         let preferredAsset = preferredAsset(from: releaseAssets)
         let update = UpdateRelease(
             latestVersion: latestVersion,
+            title: release.name,
+            releaseNotes: release.body,
             releaseURL: release.htmlURL,
             publishedAt: release.publishedAt,
             asset: preferredAsset
@@ -121,7 +123,10 @@ actor UpdateService {
         return .upToDate(currentVersion: currentVersion)
     }
 
-    func downloadUpdate(_ release: UpdateRelease) async throws -> DownloadedUpdate {
+    func downloadUpdate(
+        _ release: UpdateRelease,
+        onProgress: (@Sendable (Int64, Int64) -> Void)? = nil
+    ) async throws -> DownloadedUpdate {
         guard let asset = release.asset else {
             throw UpdateServiceError.missingAsset
         }
@@ -137,9 +142,15 @@ actor UpdateService {
             try? fileManager.removeItem(at: destinationURL)
         }
 
-        let (temporaryURL, response) = try await session.download(from: assetURL)
-        if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-            throw UpdateServiceError.downloadFailed
+        let temporaryURL: URL
+        if let onProgress {
+            temporaryURL = try await downloadWithProgress(from: assetURL, onProgress: onProgress)
+        } else {
+            let (tmpURL, response) = try await session.download(from: assetURL)
+            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                throw UpdateServiceError.downloadFailed
+            }
+            temporaryURL = tmpURL
         }
 
         do {
@@ -221,6 +232,26 @@ actor UpdateService {
         }
     }
 
+    private func downloadWithProgress(
+        from url: URL,
+        onProgress: @escaping @Sendable (Int64, Int64) -> Void
+    ) async throws -> URL {
+        let delegate = ProgressDownloadDelegate(onProgress: onProgress)
+        let progressSession = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        defer { progressSession.finishTasksAndInvalidate() }
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                delegate.continuation = continuation
+                let task = progressSession.downloadTask(with: url)
+                delegate.downloadTask = task
+                task.resume()
+            }
+        } onCancel: {
+            delegate.downloadTask?.cancel()
+        }
+    }
+
     private func findFirstAppBundle(in directory: URL) -> URL? {
         guard let enumerator = fileManager.enumerator(
             at: directory,
@@ -239,14 +270,71 @@ actor UpdateService {
     }
 }
 
+private final class ProgressDownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    let onProgress: @Sendable (Int64, Int64) -> Void
+    var continuation: CheckedContinuation<URL, any Error>?
+    var downloadTask: URLSessionDownloadTask?
+    private var resumed = false
+
+    init(onProgress: @escaping @Sendable (Int64, Int64) -> Void) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        guard !resumed else { return }
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let stablePath = tempDir.appendingPathComponent(UUID().uuidString + ".download")
+        do {
+            try FileManager.default.moveItem(at: location, to: stablePath)
+            if let httpResponse = downloadTask.response as? HTTPURLResponse,
+               !(200...299).contains(httpResponse.statusCode) {
+                try? FileManager.default.removeItem(at: stablePath)
+                resumed = true
+                continuation?.resume(throwing: UpdateServiceError.downloadFailed)
+            } else {
+                resumed = true
+                continuation?.resume(returning: stablePath)
+            }
+        } catch {
+            resumed = true
+            continuation?.resume(throwing: UpdateServiceError.downloadFailed)
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        onProgress(totalBytesWritten, totalBytesExpectedToWrite)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
+        guard !resumed, let error else { return }
+        resumed = true
+        continuation?.resume(throwing: error)
+    }
+}
+
 private struct GitHubReleaseResponse: Decodable {
     let tagName: String
+    let name: String?
+    let body: String?
     let htmlURL: String?
     let publishedAt: Date?
     let assets: [GitHubReleaseAsset]
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
+        case name
+        case body
         case htmlURL = "html_url"
         case publishedAt = "published_at"
         case assets
