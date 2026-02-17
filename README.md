@@ -52,10 +52,12 @@ xcodebuild -project LunarCalendarApp.xcodeproj \
   build
 ```
 
+Before first run, set your Apple Development Team in Xcode (`Target > Signing & Capabilities`) so macOS can persist Calendar/Reminders permissions correctly.
+
 Run the built app:
 
 ```bash
-.xcodebuild/Build/Products/Debug/LunarCalendarApp.app/Contents/MacOS/LunarCalendarApp
+open .xcodebuild/Build/Products/Debug/LunarCalendarApp.app
 ```
 
 Regenerate the Xcode project (requires [XcodeGen](https://github.com/yonaskolb/XcodeGen)):
