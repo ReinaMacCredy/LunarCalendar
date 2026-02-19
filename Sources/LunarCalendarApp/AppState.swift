@@ -156,37 +156,37 @@ final class AppState {
         refreshTask?.cancel()
         refreshNonce += 1
         let nonce = refreshNonce
-
         let selectedDate = self.selectedDate
         let displayMonth = self.displayMonth
         let settings = self.settings
-        let locale = appLocale
-        let timeZone = calendar.timeZone
+        let localeIdentifier = appLocale.identifier
+        let timeZoneIdentifier = calendar.timeZone.identifier
 
+        isLoading = true
+        errorMessage = nil
+        menuBarDate = .now
         refreshTask = Task { [weak self] in
             guard let self else {
                 return
-            }
-
-            await MainActor.run {
-                self.isLoading = true
-                self.errorMessage = nil
-                self.menuBarDate = .now
             }
             guard await MainActor.run(body: { self.refreshNonce == nonce }), !Task.isCancelled else {
                 return
             }
 
-            let monthStart = displayMonth.startOfMonth(using: calendar)
-            let monthInterval = calendar.dateInterval(of: .month, for: monthStart) ?? DateInterval(start: monthStart, duration: 86400 * 31)
-            let detailStart = calendar.startOfDay(for: selectedDate)
-            let detailEnd = selectedDate.addingDays(8, using: calendar)
+            let locale = Locale(identifier: localeIdentifier)
+            let timeZone = TimeZone(identifier: timeZoneIdentifier) ?? .current
+            var refreshCalendar = Calendar(identifier: .gregorian)
+            refreshCalendar.locale = locale
+            refreshCalendar.timeZone = timeZone
+
+            let monthStart = displayMonth.startOfMonth(using: refreshCalendar)
+            let monthInterval = refreshCalendar.dateInterval(of: .month, for: monthStart) ?? DateInterval(start: monthStart, duration: 86400 * 31)
+            let detailStart = refreshCalendar.startOfDay(for: selectedDate)
+            let detailEnd = selectedDate.addingDays(8, using: refreshCalendar)
             let detailInterval = DateInterval(start: detailStart, end: detailEnd)
             let agendaIntervals = self.mergedDateIntervals([monthInterval, detailInterval])
-
-            let prevMonth = calendar.date(byAdding: .month, value: -1, to: monthStart) ?? monthStart
-            let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart) ?? monthStart
-
+            let prevMonth = refreshCalendar.date(byAdding: .month, value: -1, to: monthStart) ?? monthStart
+            let nextMonth = refreshCalendar.date(byAdding: .month, value: 1, to: monthStart) ?? monthStart
             async let monthInfosTask = lunarService.monthInfo(
                 for: monthStart,
                 locale: locale,
@@ -208,7 +208,6 @@ final class AppState {
                 showSolarTerms: settings.showSolarTerms,
                 showHolidays: settings.showHolidays
             )
-
             async let dayInfoTask = lunarService.dayInfo(
                 for: selectedDate,
                 locale: locale,
@@ -216,11 +215,10 @@ final class AppState {
                 showSolarTerms: settings.showSolarTerms,
                 showHolidays: settings.showHolidays
             )
-
             async let sourcesTask = eventService.availableSources(includeReminders: settings.showReminders)
             let selectedEventCalendarIDs = settings.allEventCalendarsSelected ? nil : settings.selectedEventCalendarIDs
             let selectedReminderCalendarIDs = settings.allReminderCalendarsSelected ? nil : settings.selectedReminderCalendarIDs
-            var agendaBatches: [(interval: DateInterval, items: [AgendaItem])] = []
+            var agendaBatches: [AppStateRefreshAgendaBatch] = []
             agendaBatches.reserveCapacity(agendaIntervals.count)
             for interval in agendaIntervals {
                 guard await MainActor.run(body: { self.refreshNonce == nonce }), !Task.isCancelled else {
@@ -232,26 +230,28 @@ final class AppState {
                     selectedReminderCalendarIDs: selectedReminderCalendarIDs,
                     includeReminders: settings.showReminders
                 )
-                agendaBatches.append((interval: interval, items: items))
+                agendaBatches.append(AppStateRefreshAgendaBatch(interval: interval, items: items))
             }
-
             let monthInfos = await monthInfosTask
             let prevMonthInfos = await prevMonthInfosTask
             let nextMonthInfos = await nextMonthInfosTask
             let dayInfo = await dayInfoTask
             let sources = await sourcesTask
-            var agendaByID: [String: AgendaItem] = [:]
-            for batch in agendaBatches {
-                for item in batch.items {
-                    agendaByID[item.id] = item
-                }
-            }
-            let agenda = agendaByID.values.sorted { lhs, rhs in
-                if lhs.sortDate == rhs.sortDate {
-                    return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
-                }
-                return lhs.sortDate < rhs.sortDate
-            }
+            let derivedInput = AppStateRefreshDerivedInput(
+                localeIdentifier: localeIdentifier,
+                timeZoneIdentifier: timeZoneIdentifier,
+                monthStart: monthStart,
+                selectedDate: selectedDate,
+                detailInterval: detailInterval,
+                firstWeekday: settings.firstWeekday,
+                monthInfos: monthInfos,
+                previousMonthInfos: prevMonthInfos,
+                nextMonthInfos: nextMonthInfos,
+                agendaBatches: agendaBatches
+            )
+            let derivedOutput = await Task.detached(priority: .userInitiated) {
+                computeAppStateRefreshDerivedOutput(from: derivedInput)
+            }.value
 
             guard await MainActor.run(body: { self.refreshNonce == nonce }), !Task.isCancelled else {
                 return
@@ -265,38 +265,13 @@ final class AppState {
                 return
             }
 
-            let monthMap = Dictionary(
-                uniqueKeysWithValues: (prevMonthInfos + monthInfos + nextMonthInfos).map { info in
-                    (calendar.startOfDay(for: info.gregorianDate), info)
-                }
-            )
-
-            let agendaDays = Set(agenda.map { calendar.startOfDay(for: $0.sortDate) })
-            let cells = CalendarGridBuilder.monthCells(
-                monthStart: monthStart,
-                selectedDate: selectedDate,
-                monthInfos: monthMap,
-                agendaDays: agendaDays,
-                firstWeekday: settings.firstWeekday,
-                calendar: calendar
-            )
-
-            let detailAgenda = agenda.filter { item in
-                item.sortDate >= detailStart && item.sortDate < detailEnd
-            }
-            guard await MainActor.run(body: { self.refreshNonce == nonce }), !Task.isCancelled else {
-                return
-            }
-
             await MainActor.run {
                 self.weekdaySymbols = CalendarGridBuilder.weekdaySymbols(calendar: self.calendar, firstWeekday: settings.firstWeekday)
-                self.monthCells = cells
+                self.monthCells = derivedOutput.monthCells
                 self.selectedDayInfo = dayInfo
                 self.availableSources = sources
-                self.agendaItems = detailAgenda
+                self.agendaItems = derivedOutput.detailAgenda
                 self.isLoading = false
-                self.eventAccess = self.eventAccess
-                self.reminderAccess = self.reminderAccess
                 if reason == .permissionsChanged {
                     self.errorMessage = nil
                 }
@@ -305,23 +280,23 @@ final class AppState {
     }
 
     func selectDate(_ date: Date) {
-        let normalized = calendar.startOfDay(for: date)
-        selectedDate = normalized
-        displayMonth = normalized.startOfMonth(using: calendar)
-        refresh(reason: .selectedDateChanged)
+        updateSelectedDate(date)
     }
-
     func jumpToDate(_ date: Date) {
-        let normalized = calendar.startOfDay(for: date)
-        selectedDate = normalized
-        displayMonth = normalized.startOfMonth(using: calendar)
-        refresh(reason: .selectedDateChanged)
+        updateSelectedDate(date)
     }
 
     func goToToday() {
         let today = calendar.startOfDay(for: .now)
         selectedDate = today
         displayMonth = today.startOfMonth(using: calendar)
+        refresh(reason: .selectedDateChanged)
+    }
+
+    private func updateSelectedDate(_ date: Date) {
+        let normalized = calendar.startOfDay(for: date)
+        selectedDate = normalized
+        displayMonth = normalized.startOfMonth(using: calendar)
         refresh(reason: .selectedDateChanged)
     }
 
@@ -832,6 +807,10 @@ final class AppState {
         calendar.timeZone = .current
     }
 
+    var appCalendar: Calendar {
+        calendar
+    }
+
     private func localizedLunarMenuBarTitle(for date: Date, locale: Locale) -> String {
         var lunarCalendar = Calendar(identifier: .chinese)
         lunarCalendar.locale = locale
@@ -853,4 +832,71 @@ final class AppState {
 
         return "\(day)/\(month)\(leapMarker) \(yearName)"
     }
+}
+
+struct AppStateRefreshAgendaBatch: Sendable {
+    let interval: DateInterval
+    let items: [AgendaItem]
+}
+
+struct AppStateRefreshDerivedInput: Sendable {
+    let localeIdentifier: String
+    let timeZoneIdentifier: String
+    let monthStart: Date
+    let selectedDate: Date
+    let detailInterval: DateInterval
+    let firstWeekday: Int
+    let monthInfos: [LunarDayInfo]
+    let previousMonthInfos: [LunarDayInfo]
+    let nextMonthInfos: [LunarDayInfo]
+    let agendaBatches: [AppStateRefreshAgendaBatch]
+}
+
+struct AppStateRefreshDerivedOutput: Sendable {
+    let monthCells: [CalendarDayCell]
+    let detailAgenda: [AgendaItem]
+}
+
+func computeAppStateRefreshDerivedOutput(from input: AppStateRefreshDerivedInput) -> AppStateRefreshDerivedOutput {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = Locale(identifier: input.localeIdentifier)
+    calendar.timeZone = TimeZone(identifier: input.timeZoneIdentifier) ?? .current
+
+    var agendaByID: [String: AgendaItem] = [:]
+    for batch in input.agendaBatches {
+        for item in batch.items {
+            agendaByID[item.id] = item
+        }
+    }
+    let agenda = agendaByID.values.sorted { lhs, rhs in
+        if lhs.sortDate == rhs.sortDate {
+            return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+        }
+        return lhs.sortDate < rhs.sortDate
+    }
+
+    let monthMap = Dictionary(
+        uniqueKeysWithValues: (input.previousMonthInfos + input.monthInfos + input.nextMonthInfos).map { info in
+            (calendar.startOfDay(for: info.gregorianDate), info)
+        }
+    )
+
+    let agendaDays = Set(agenda.map { calendar.startOfDay(for: $0.sortDate) })
+    let monthCells = CalendarGridBuilder.monthCells(
+        monthStart: input.monthStart,
+        selectedDate: input.selectedDate,
+        monthInfos: monthMap,
+        agendaDays: agendaDays,
+        firstWeekday: input.firstWeekday,
+        calendar: calendar
+    )
+
+    let detailAgenda = agenda.filter { item in
+        item.sortDate >= input.detailInterval.start && item.sortDate < input.detailInterval.end
+    }
+
+    return AppStateRefreshDerivedOutput(
+        monthCells: monthCells,
+        detailAgenda: detailAgenda
+    )
 }

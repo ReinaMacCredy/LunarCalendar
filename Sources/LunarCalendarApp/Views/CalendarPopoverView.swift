@@ -6,9 +6,9 @@ import SwiftUI
 struct CalendarPopoverView: View {
     @Bindable var model: AppState
     @State private var isJumpDatePopoverPresented = false
-    @State private var jumpYear = Calendar.current.component(.year, from: .now)
-    @State private var jumpMonth = Calendar.current.component(.month, from: .now)
-    @State private var jumpDay = Calendar.current.component(.day, from: .now)
+    @State private var jumpYear = Calendar(identifier: .gregorian).component(.year, from: .now)
+    @State private var jumpMonth = Calendar(identifier: .gregorian).component(.month, from: .now)
+    @State private var jumpDay = Calendar(identifier: .gregorian).component(.day, from: .now)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -136,10 +136,10 @@ struct CalendarPopoverView: View {
     private var jumpDatePopover: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Đi đến ngày")
+                Text(L10n.tr("Đi đến ngày", locale: model.appLocale, fallback: "Đi đến ngày"))
                     .font(.headline)
                 Spacer()
-                Button("Hôm nay") {
+                Button(L10n.tr("Hôm nay", locale: model.appLocale, fallback: "Hôm nay")) {
                     syncJumpSelection(with: .now)
                 }
                 .buttonStyle(.bordered)
@@ -157,7 +157,7 @@ struct CalendarPopoverView: View {
 
             HStack(spacing: 10) {
                 jumpPicker(title: L10n.tr("Ngày", locale: model.appLocale, fallback: "Ngày")) {
-                    Picker("Ngày", selection: $jumpDay) {
+                    Picker(L10n.tr("Ngày", locale: model.appLocale, fallback: "Ngày"), selection: $jumpDay) {
                         ForEach(1...maxJumpDay, id: \.self) { day in
                             Text("\(day)").tag(day)
                         }
@@ -167,7 +167,7 @@ struct CalendarPopoverView: View {
                 }
 
                 jumpPicker(title: L10n.tr("Tháng", locale: model.appLocale, fallback: "Tháng")) {
-                    Picker("Tháng", selection: $jumpMonth) {
+                    Picker(L10n.tr("Tháng", locale: model.appLocale, fallback: "Tháng"), selection: $jumpMonth) {
                         ForEach(1...12, id: \.self) { month in
                             let monthLabel = String(
                                 format: L10n.tr("Tháng %@", locale: model.appLocale, fallback: "Tháng %@"),
@@ -182,7 +182,7 @@ struct CalendarPopoverView: View {
                 }
 
                 jumpPicker(title: L10n.tr("Năm", locale: model.appLocale, fallback: "Năm")) {
-                    Picker("Năm", selection: $jumpYear) {
+                    Picker(L10n.tr("Năm", locale: model.appLocale, fallback: "Năm"), selection: $jumpYear) {
                         ForEach(jumpYearRange, id: \.self) { year in
                             Text("\(year)").tag(year)
                         }
@@ -199,14 +199,14 @@ struct CalendarPopoverView: View {
             }
 
             HStack {
-                Button("Hủy") {
+                Button(L10n.tr("Hủy", locale: model.appLocale, fallback: "Hủy")) {
                     isJumpDatePopoverPresented = false
                 }
                 .buttonStyle(.bordered)
 
                 Spacer()
 
-                Button("Đi") {
+                Button(L10n.tr("Đi", locale: model.appLocale, fallback: "Đi")) {
                     if let selectedDate = jumpSelectionDate {
                         model.jumpToDate(selectedDate)
                         isJumpDatePopoverPresented = false
@@ -220,19 +220,17 @@ struct CalendarPopoverView: View {
     }
 
     private var jumpYearRange: ClosedRange<Int> {
-        let currentYear = Calendar.current.component(.year, from: .now)
+        let currentYear = jumpCalendar.component(.year, from: .now)
         return (currentYear - 100)...(currentYear + 100)
     }
 
     private var maxJumpDay: Int {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
         var components = DateComponents()
         components.year = jumpYear
         components.month = jumpMonth
         components.day = 1
-        guard let date = calendar.date(from: components),
-              let range = calendar.range(of: .day, in: .month, for: date)
+        guard let date = jumpCalendar.date(from: components),
+              let range = jumpCalendar.range(of: .day, in: .month, for: date)
         else {
             return 31
         }
@@ -240,14 +238,12 @@ struct CalendarPopoverView: View {
     }
 
     private var jumpSelectionDate: Date? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
         var components = DateComponents()
         components.year = jumpYear
         components.month = jumpMonth
         components.day = min(jumpDay, maxJumpDay)
         components.hour = 12
-        return calendar.date(from: components)
+        return jumpCalendar.date(from: components)
     }
 
     private var jumpDatePreview: String {
@@ -258,9 +254,7 @@ struct CalendarPopoverView: View {
     }
 
     private func syncJumpSelection(with date: Date) {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let components = jumpCalendar.dateComponents([.year, .month, .day], from: date)
         jumpYear = components.year ?? jumpYear
         jumpMonth = components.month ?? jumpMonth
         jumpDay = components.day ?? jumpDay
@@ -271,6 +265,12 @@ struct CalendarPopoverView: View {
         jumpDay = min(jumpDay, maxJumpDay)
     }
 
+    private var jumpCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = model.appLocale
+        calendar.timeZone = model.appCalendar.timeZone
+        return calendar
+    }
     private func quickJumpButton(title: String, yearOffset: Int) -> some View {
         Button(title) {
             jumpYear += yearOffset

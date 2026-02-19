@@ -143,6 +143,154 @@ final class AppStateBehaviorTests: XCTestCase {
         XCTAssertEqual(persisted.pendingDownloadedUpdate, settings.pendingDownloadedUpdate)
     }
 
+    func testSelectDateAndJumpToDateNormalizeSameWay() async {
+        let state = await MainActor.run {
+            AppState()
+        }
+        let rawDate = Date(timeIntervalSince1970: 1_739_875_212)
+
+        await MainActor.run {
+            state.selectDate(rawDate)
+            let selectedAfterSelect = state.selectedDate
+            let displayMonthAfterSelect = state.displayMonth
+
+            state.jumpToDate(rawDate)
+
+            XCTAssertEqual(state.selectedDate, selectedAfterSelect)
+            XCTAssertEqual(state.displayMonth, displayMonthAfterSelect)
+            XCTAssertEqual(state.selectedDate, state.appCalendar.startOfDay(for: rawDate))
+        }
+    }
+
+    func testRefreshDerivedOutputDeduplicatesSortsAndFiltersDetailAgenda() {
+        let monthStart = makeGregorianDate(year: 2026, month: 2, day: 1, hour: 0)
+        let selectedDate = makeGregorianDate(year: 2026, month: 2, day: 10)
+        let detailInterval = DateInterval(
+            start: makeGregorianDate(year: 2026, month: 2, day: 10, hour: 0),
+            end: makeGregorianDate(year: 2026, month: 2, day: 18, hour: 0)
+        )
+
+        let betaItem = AgendaItem(
+            id: "event:beta",
+            kind: .event,
+            sourceIdentifier: "calendar-a",
+            sourceTitle: "Calendar A",
+            title: "Beta",
+            startDate: makeGregorianDate(year: 2026, month: 2, day: 10, hour: 9),
+            endDate: nil,
+            isAllDay: false,
+            isCompleted: false
+        )
+        let sharedOriginal = AgendaItem(
+            id: "event:shared",
+            kind: .event,
+            sourceIdentifier: "calendar-a",
+            sourceTitle: "Calendar A",
+            title: "Original Shared Event",
+            startDate: makeGregorianDate(year: 2026, month: 2, day: 11, hour: 8),
+            endDate: nil,
+            isAllDay: false,
+            isCompleted: false
+        )
+        let sharedUpdated = AgendaItem(
+            id: "event:shared",
+            kind: .event,
+            sourceIdentifier: "calendar-b",
+            sourceTitle: "Calendar B",
+            title: "Updated Shared Event",
+            startDate: makeGregorianDate(year: 2026, month: 2, day: 11, hour: 10),
+            endDate: nil,
+            isAllDay: false,
+            isCompleted: false
+        )
+        let outsideDetailWindow = AgendaItem(
+            id: "event:outside",
+            kind: .event,
+            sourceIdentifier: "calendar-c",
+            sourceTitle: "Calendar C",
+            title: "Outside Detail Window",
+            startDate: makeGregorianDate(year: 2026, month: 2, day: 20, hour: 9),
+            endDate: nil,
+            isAllDay: false,
+            isCompleted: false
+        )
+
+        let input = AppStateRefreshDerivedInput(
+            localeIdentifier: "en_US_POSIX",
+            timeZoneIdentifier: "UTC",
+            monthStart: monthStart,
+            selectedDate: selectedDate,
+            detailInterval: detailInterval,
+            firstWeekday: 2,
+            monthInfos: [makeLunarInfo(for: selectedDate, label: "S")],
+            previousMonthInfos: [makeLunarInfo(for: makeGregorianDate(year: 2026, month: 1, day: 31), label: "P")],
+            nextMonthInfos: [makeLunarInfo(for: makeGregorianDate(year: 2026, month: 3, day: 1), label: "N")],
+            agendaBatches: [
+                AppStateRefreshAgendaBatch(
+                    interval: DateInterval(
+                        start: makeGregorianDate(year: 2026, month: 2, day: 1, hour: 0),
+                        end: makeGregorianDate(year: 2026, month: 2, day: 15, hour: 0)
+                    ),
+                    items: [betaItem, sharedOriginal]
+                ),
+                AppStateRefreshAgendaBatch(
+                    interval: DateInterval(
+                        start: makeGregorianDate(year: 2026, month: 2, day: 10, hour: 0),
+                        end: makeGregorianDate(year: 2026, month: 3, day: 1, hour: 0)
+                    ),
+                    items: [sharedUpdated, outsideDetailWindow]
+                ),
+            ]
+        )
+
+        let output = computeAppStateRefreshDerivedOutput(from: input)
+
+        XCTAssertEqual(output.monthCells.count, 42)
+        XCTAssertEqual(output.detailAgenda.map(\.id), ["event:beta", "event:shared"])
+        XCTAssertEqual(output.detailAgenda.last?.title, "Updated Shared Event")
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        XCTAssertTrue(
+            output.monthCells.contains { cell in
+                guard let date = cell.date, cell.isSelected else {
+                    return false
+                }
+                return calendar.isDate(date, inSameDayAs: selectedDate)
+            }
+        )
+    }
+
+    private func makeGregorianDate(year: Int, month: Int, day: Int, hour: Int = 12) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = 0
+        components.second = 0
+        return calendar.date(from: components) ?? .distantPast
+    }
+
+    private func makeLunarInfo(for date: Date, label: String) -> LunarDayInfo {
+        LunarDayInfo(
+            gregorianDate: date,
+            lunarYearText: "Year",
+            fullLunarDateText: "Full Lunar Date",
+            lunarMonthText: "Month",
+            lunarDayText: "Day",
+            displayLabel: label,
+            compactDisplayLabel: label,
+            isLeapMonth: false,
+            solarTerm: nil,
+            lunarFestival: nil,
+            holiday: nil,
+            isImportantFestivalDay: false
+        )
+    }
+
     private func makeIsolatedDefaultsSuiteName(file: StaticString = #filePath, line: UInt = #line) -> String {
         let suiteName = "AppStateBehaviorTests.\(UUID().uuidString)"
         guard UserDefaults(suiteName: suiteName) != nil else {
