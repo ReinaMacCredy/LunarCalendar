@@ -1,10 +1,16 @@
 @testable import LunarCalendarApp
 import Foundation
-import XCTest
+import Testing
 
-final class AppStateBehaviorTests: XCTestCase {
-    func testSettingsStoreKeepsIntentionalCustomFormatSelection() async {
+@Suite("AppState behavior")
+struct AppStateBehaviorTests {
+    @Test("SettingsStore keeps intentional custom format selection")
+    func settingsStoreKeepsIntentionalCustomFormatSelection() async throws {
         let suiteName = makeIsolatedDefaultsSuiteName()
+        let defaults = try #require(UserDefaults(suiteName: suiteName), "Failed to create isolated defaults suite")
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
         let settingsStore = SettingsStore(suiteName: suiteName)
 
         var settings = UserSettings()
@@ -13,16 +19,20 @@ final class AppStateBehaviorTests: XCTestCase {
         await settingsStore.save(settings)
 
         let persisted = await settingsStore.load()
-        XCTAssertEqual(persisted.iconStyle, .customFormat)
-        XCTAssertEqual(persisted.customIconFormat, "EEE d MMM HH:mm")
+        #expect(persisted.iconStyle == .customFormat)
+        #expect(persisted.customIconFormat == "EEE d MMM HH:mm")
     }
 
-    func testSetSourceDoesNotPersistWithoutSettingsDidChange() async {
+    @MainActor
+    @Test("setSource does not persist without settingsDidChange")
+    func setSourceDoesNotPersistWithoutSettingsDidChange() async throws {
         let suiteName = makeIsolatedDefaultsSuiteName()
+        let defaults = try #require(UserDefaults(suiteName: suiteName), "Failed to create isolated defaults suite")
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
         let settingsStore = SettingsStore(suiteName: suiteName)
-        let state = await MainActor.run {
-            AppState(settingsStore: settingsStore)
-        }
+        let state = AppState(settingsStore: settingsStore)
 
         let source = CalendarSource(
             id: "event:home",
@@ -30,105 +40,76 @@ final class AppStateBehaviorTests: XCTestCase {
             title: "Home",
             kind: .event
         )
-        await MainActor.run {
-            state.availableSources = [source]
-            state.setSource(source, isSelected: false)
-        }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        state.availableSources = [source]
+        state.setSource(source, isSelected: false)
 
         let persisted = await settingsStore.load()
-        XCTAssertTrue(persisted.allEventCalendarsSelected)
-        XCTAssertTrue(persisted.selectedEventCalendarIDs.isEmpty)
+        #expect(persisted.allEventCalendarsSelected)
+        #expect(persisted.selectedEventCalendarIDs.isEmpty)
     }
 
-    func testMenuBarTitleLunarCompactOmitsVietnamesePrefix() async {
-        let state = await MainActor.run {
-            AppState()
-        }
+    @MainActor
+    @Test(
+        "Lunar compact menu bar title omits legacy language prefixes",
+        arguments: [
+            PrefixScenario(language: .vietnamese, unexpectedPrefix: "ÂL "),
+            PrefixScenario(language: .english, unexpectedPrefix: "Lunar "),
+            PrefixScenario(language: .chineseSimplified, unexpectedPrefix: "农历 "),
+        ]
+    )
+    func menuBarTitleLunarCompactOmitsLanguagePrefix(scenario: PrefixScenario) {
+        let state = AppState()
 
-        await MainActor.run {
-            state.settings.iconStyle = .lunarCompact
-            state.settings.language = .vietnamese
-            state.menuBarDate = Date(timeIntervalSince1970: 1_739_746_800)
-            let title = state.menuBarTitle
-            XCTAssertFalse(title.hasPrefix("ÂL "), "Unexpected prefix in menu bar title: \(title)")
-        }
+        state.settings.iconStyle = .lunarCompact
+        state.settings.language = scenario.language
+        state.menuBarDate = Date(timeIntervalSince1970: 1_739_746_800)
+        let title = state.menuBarTitle
+
+        #expect(!title.hasPrefix(scenario.unexpectedPrefix))
     }
 
-    func testMenuBarTitleLunarCompactOmitsEnglishPrefix() async {
-        let state = await MainActor.run {
-            AppState()
-        }
+    @MainActor
+    @Test("Up-to-date status auto-resets to idle after configured delay")
+    func upToDateStatusAutoResetsToIdleAfterConfiguredDelay() async {
+        let state = AppState(upToDateStatusDisplayDuration: .milliseconds(50))
 
-        await MainActor.run {
-            state.settings.iconStyle = .lunarCompact
-            state.settings.language = .english
-            state.menuBarDate = Date(timeIntervalSince1970: 1_739_746_800)
-            let title = state.menuBarTitle
-            XCTAssertFalse(title.hasPrefix("Lunar "), "Unexpected prefix in menu bar title: \(title)")
-        }
-    }
+        state.applyUpdateCheckResult(.upToDate(currentVersion: "1.2.3"))
+        #expect(isUpToDate(state.updateStatus))
 
-    func testMenuBarTitleLunarCompactOmitsChinesePrefix() async {
-        let state = await MainActor.run {
-            AppState()
-        }
-
-        await MainActor.run {
-            state.settings.iconStyle = .lunarCompact
-            state.settings.language = .chineseSimplified
-            state.menuBarDate = Date(timeIntervalSince1970: 1_739_746_800)
-            let title = state.menuBarTitle
-            XCTAssertFalse(title.hasPrefix("农历 "), "Unexpected prefix in menu bar title: \(title)")
-        }
-    }
-
-    func testUpToDateStatusAutoResetsToIdleAfterConfiguredDelay() async {
-        let state = await MainActor.run {
-            AppState(upToDateStatusDisplayDuration: .milliseconds(50))
-        }
-
-        await MainActor.run {
-            state.applyUpdateCheckResult(.upToDate(currentVersion: "1.2.3"))
-            guard case .upToDate = state.updateStatus else {
-                XCTFail("Expected update status to be up to date")
-                return
+        let resetToIdle = await waitUntil(timeout: .seconds(1)) {
+            if case .idle = state.updateStatus {
+                return true
             }
+            return false
         }
 
-        try? await Task.sleep(for: .milliseconds(150))
-
-        await MainActor.run {
-            guard case .idle = state.updateStatus else {
-                XCTFail("Expected update status to reset to idle")
-                return
-            }
-        }
+        #expect(resetToIdle)
     }
 
-    func testUpToDateStatusResetDoesNotOverrideNewStatus() async {
-        let state = await MainActor.run {
-            AppState(upToDateStatusDisplayDuration: .milliseconds(50))
-        }
+    @MainActor
+    @Test("Up-to-date reset task does not override a newer status")
+    func upToDateStatusResetDoesNotOverrideNewStatus() async {
+        let state = AppState(upToDateStatusDisplayDuration: .milliseconds(50))
 
-        await MainActor.run {
-            state.applyUpdateCheckResult(.upToDate(currentVersion: "1.2.3"))
-            state.updateStatus = .error("network failed")
-        }
+        state.applyUpdateCheckResult(.upToDate(currentVersion: "1.2.3"))
+        state.updateStatus = .error("network failed")
 
-        try? await Task.sleep(for: .milliseconds(150))
+        let remainedError = await remainsError(
+            state,
+            message: "network failed",
+            for: .milliseconds(220)
+        )
 
-        await MainActor.run {
-            guard case .error(let message) = state.updateStatus else {
-                XCTFail("Expected update status to remain error")
-                return
-            }
-            XCTAssertEqual(message, "network failed")
-        }
+        #expect(remainedError)
     }
 
-    func testSettingsStorePersistsPendingDownloadedUpdate() async {
+    @Test("SettingsStore persists pending downloaded update")
+    func settingsStorePersistsPendingDownloadedUpdate() async throws {
         let suiteName = makeIsolatedDefaultsSuiteName()
+        let defaults = try #require(UserDefaults(suiteName: suiteName), "Failed to create isolated defaults suite")
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
         let settingsStore = SettingsStore(suiteName: suiteName)
 
         var settings = UserSettings()
@@ -140,29 +121,28 @@ final class AppStateBehaviorTests: XCTestCase {
         await settingsStore.save(settings)
 
         let persisted = await settingsStore.load()
-        XCTAssertEqual(persisted.pendingDownloadedUpdate, settings.pendingDownloadedUpdate)
+        #expect(persisted.pendingDownloadedUpdate == settings.pendingDownloadedUpdate)
     }
 
-    func testSelectDateAndJumpToDateNormalizeSameWay() async {
-        let state = await MainActor.run {
-            AppState()
-        }
+    @MainActor
+    @Test("selectDate and jumpToDate normalize dates the same way")
+    func selectDateAndJumpToDateNormalizeSameWay() {
+        let state = AppState()
         let rawDate = Date(timeIntervalSince1970: 1_739_875_212)
 
-        await MainActor.run {
-            state.selectDate(rawDate)
-            let selectedAfterSelect = state.selectedDate
-            let displayMonthAfterSelect = state.displayMonth
+        state.selectDate(rawDate)
+        let selectedAfterSelect = state.selectedDate
+        let displayMonthAfterSelect = state.displayMonth
 
-            state.jumpToDate(rawDate)
+        state.jumpToDate(rawDate)
 
-            XCTAssertEqual(state.selectedDate, selectedAfterSelect)
-            XCTAssertEqual(state.displayMonth, displayMonthAfterSelect)
-            XCTAssertEqual(state.selectedDate, state.appCalendar.startOfDay(for: rawDate))
-        }
+        #expect(state.selectedDate == selectedAfterSelect)
+        #expect(state.displayMonth == displayMonthAfterSelect)
+        #expect(state.selectedDate == state.appCalendar.startOfDay(for: rawDate))
     }
 
-    func testRefreshDerivedOutputDeduplicatesSortsAndFiltersDetailAgenda() {
+    @Test("refresh derived output deduplicates, sorts, and filters detail agenda")
+    func refreshDerivedOutputDeduplicatesSortsAndFiltersDetailAgenda() {
         let monthStart = makeGregorianDate(year: 2026, month: 2, day: 1, hour: 0)
         let selectedDate = makeGregorianDate(year: 2026, month: 2, day: 10)
         let detailInterval = DateInterval(
@@ -245,13 +225,13 @@ final class AppStateBehaviorTests: XCTestCase {
 
         let output = computeAppStateRefreshDerivedOutput(from: input)
 
-        XCTAssertEqual(output.monthCells.count, 42)
-        XCTAssertEqual(output.detailAgenda.map(\.id), ["event:beta", "event:shared"])
-        XCTAssertEqual(output.detailAgenda.last?.title, "Updated Shared Event")
+        #expect(output.monthCells.count == 42)
+        #expect(output.detailAgenda.map(\.id) == ["event:beta", "event:shared"])
+        #expect(output.detailAgenda.last?.title == "Updated Shared Event")
 
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
-        XCTAssertTrue(
+        #expect(
             output.monthCells.contains { cell in
                 guard let date = cell.date, cell.isSelected else {
                     return false
@@ -291,17 +271,62 @@ final class AppStateBehaviorTests: XCTestCase {
         )
     }
 
-    private func makeIsolatedDefaultsSuiteName(file: StaticString = #filePath, line: UInt = #line) -> String {
-        let suiteName = "AppStateBehaviorTests.\(UUID().uuidString)"
-        guard UserDefaults(suiteName: suiteName) != nil else {
-            XCTFail("Failed to create isolated defaults suite", file: file, line: line)
-            return UUID().uuidString
+    private func makeIsolatedDefaultsSuiteName() -> String {
+        "AppStateBehaviorTests.\(UUID().uuidString)"
+    }
+
+    @MainActor
+    private func waitUntil(
+        timeout: Duration,
+        pollInterval: Duration = .milliseconds(10),
+        condition: @MainActor () -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+
+        while clock.now < deadline {
+            if condition() {
+                return true
+            }
+            try? await Task.sleep(for: pollInterval)
         }
 
-        UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
-        addTeardownBlock {
-            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+        return condition()
+    }
+
+    @MainActor
+    private func remainsError(
+        _ state: AppState,
+        message: String,
+        for duration: Duration,
+        pollInterval: Duration = .milliseconds(10)
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + duration
+
+        while clock.now < deadline {
+            guard case .error(let currentMessage) = state.updateStatus, currentMessage == message else {
+                return false
+            }
+            try? await Task.sleep(for: pollInterval)
         }
-        return suiteName
+
+        return true
+    }
+
+    private func isUpToDate(_ status: UpdateStatus) -> Bool {
+        if case .upToDate = status {
+            return true
+        }
+        return false
+    }
+
+    struct PrefixScenario: Sendable, CustomTestStringConvertible {
+        let language: AppLanguage
+        let unexpectedPrefix: String
+
+        var testDescription: String {
+            "\(language.rawValue) omits '\(unexpectedPrefix)'"
+        }
     }
 }

@@ -1,73 +1,61 @@
-# CLAUDE.md
+# LunarCalendarApp
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+macOS menu bar app -- Swift 6.0, macOS 14+, no external dependencies. Vietnamese lunar calendar with calendar/reminder integration.
 
-## Build & Test Commands
+## Commands
 
 ```bash
-# Run tests (primary verification command)
+# Test (primary verification)
 swift test
-
-# Run a single test
 swift test --filter LunarServiceTests/testMonthInfoCountMatchesGregorianMonth
 
-# Build debug via Xcode project
+# Build debug
 xcodebuild -project LunarCalendarApp.xcodeproj -scheme LunarCalendarApp \
   -configuration Debug -derivedDataPath ./.xcodebuild build
 
-# Build release (no code signing, matches CI)
+# Build release (CI-compatible, no signing)
 xcodebuild -project LunarCalendarApp.xcodeproj -scheme LunarCalendarApp \
   -configuration Release -destination "platform=macOS" \
   -derivedDataPath ./.xcodebuild \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY="" build
 
-# Run the built app
+# Run
 .xcodebuild/Build/Products/Debug/LunarCalendarApp.app/Contents/MacOS/LunarCalendarApp
 ```
 
-The Xcode project is generated from `project.yml` via XcodeGen. Edit `project.yml` for build settings, not the `.xcodeproj` directly.
+## Project Config
+
+Xcode project is generated from `project.yml` via XcodeGen. Edit `project.yml` for build settings -- never `.xcodeproj` directly.
 
 ## Architecture
 
-**macOS menu bar app** (Swift 6.0, macOS 14+, no external dependencies) displaying a Vietnamese lunar calendar with calendar/reminder integration.
-
 ### State & Lifecycle
+- `LunarCalendarApp.swift` -- `@main`, creates `AppState` + `MenuBarController`
+- `AppState` -- `@Observable @MainActor` singleton. Refresh via `RefreshReason` enum. Nonce-based cancellation for stale async updates.
+- `MenuBarController` -- `NSStatusItem` + `NSPopover`, bridges AppKit menu bar with SwiftUI
 
-- `LunarCalendarApp.swift` — `@main` entry point, creates `AppState` and `MenuBarController`
-- `AppState` — `@Observable @MainActor` singleton, owns all app state. Coordinates refresh via `RefreshReason` enum (startup, timerTick, eventStoreChanged, monthChanged, settingsChanged, permissionsChanged). Uses nonce-based cancellation for stale async updates.
-- `MenuBarController` — manages `NSStatusItem` and `NSPopover`, bridges AppKit menu bar with SwiftUI views
+### Services/
+- `LunarService` -- pure lunar math + Vietnamese festival/solar term mapping. Loads `solar_terms.json` from bundle. No side effects.
+- `EventKitService` -- `EKEventStore` wrapper. Permissions + change notifications.
+- `SettingsStore` -- `UserDefaults`-backed `UserSettings` persistence
+- `LaunchAtLoginManager` -- `SMAppService` wrapper
 
-### Services (Sources/LunarCalendarApp/Services/)
+### Persistence/
+- `AgendaCacheStore` -- local agenda item cache
+- `PersistenceController` -- cache lifecycle
 
-- `LunarService` — pure lunar calendar math + Vietnamese festival/solar term mapping. Loads `solar_terms.json` from bundle resources. No side effects.
-- `EventKitService` — `EKEventStore` wrapper for calendar events and reminders. Handles permissions and change notifications.
-- `SettingsStore` — `UserDefaults`-backed persistence for `UserSettings`
-- `LaunchAtLoginManager` — `SMAppService` wrapper
+### Views/
+- `CalendarPopoverView` --> `MonthGridView` + `AgendaListView`
+- `AppSettingsView` -- standalone settings window
 
-### Persistence (Sources/LunarCalendarApp/Persistence/)
-
-- `AgendaCacheStore` — local cache for agenda items using a lightweight store
-- `PersistenceController` — cache lifecycle management
-
-### Views (Sources/LunarCalendarApp/Views/)
-
-SwiftUI views rendered inside the menu bar popover:
-- `CalendarPopoverView` → `MonthGridView` + `AgendaListView`
-- `AppSettingsView` — standalone settings window
-
-### Key Models (Models.swift)
-
-- `LunarDayInfo` — complete lunar calendar data for one day
-- `AgendaItem` — calendar event or reminder
-- `UserSettings` — all user preferences
-- `CalendarSource` — available calendar/reminder lists for filtering
-- `CalendarDayCell` — UI-ready data for month grid cells
+### Models (Models.swift)
+`LunarDayInfo` | `AgendaItem` | `UserSettings` | `CalendarSource` | `CalendarDayCell`
 
 ## Concurrency
 
-Strict concurrency is enabled (`SWIFT_STRICT_CONCURRENCY = complete`). `AppState` and all UI code runs on `@MainActor`. Services use `async/await`. Follow existing actor isolation patterns when adding new code.
+Strict concurrency enabled (`SWIFT_STRICT_CONCURRENCY = complete`). `AppState` and UI on `@MainActor`. Services use `async/await`. Follow existing actor isolation patterns.
 
 ## Testing
 
-Tests use XCTest with async test methods. `@testable import LunarCalendarApp` gives access to internals. Tests cover lunar calculations, state behavior, source selection logic, and cache operations.
+XCTest with async methods. `@testable import LunarCalendarApp`. Coverage: lunar calculations, state behavior, source selection, cache operations.

@@ -1,12 +1,14 @@
 @testable import LunarCalendarApp
-import XCTest
+import Foundation
+import Testing
 
-final class LunarServiceTests: XCTestCase {
-    func testMonthInfoCountMatchesGregorianMonth() async {
+@Suite("Lunar service")
+struct LunarServiceTests {
+    @Test("Month info count matches Gregorian month length")
+    func monthInfoCountMatchesGregorianMonth() async throws {
         let service = LunarService()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let month = calendar.date(from: DateComponents(year: 2026, month: 2, day: 1))!
+        let calendar = Self.utcGregorianCalendar()
+        let month = try #require(calendar.date(from: DateComponents(year: 2026, month: 2, day: 1)))
 
         let infos = await service.monthInfo(
             for: month,
@@ -16,14 +18,14 @@ final class LunarServiceTests: XCTestCase {
             showHolidays: true
         )
 
-        XCTAssertEqual(infos.count, 28)
+        #expect(infos.count == 28)
     }
 
-    func testKnownTetDateMapsToFestival() async {
+    @Test("Known Tet date maps to festival")
+    func knownTetDateMapsToFestival() async throws {
         let service = LunarService()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let date = calendar.date(from: DateComponents(year: 2024, month: 2, day: 10))!
+        let calendar = Self.utcGregorianCalendar()
+        let date = try #require(calendar.date(from: DateComponents(year: 2024, month: 2, day: 10)))
 
         let info = await service.dayInfo(
             for: date,
@@ -33,77 +35,53 @@ final class LunarServiceTests: XCTestCase {
             showHolidays: false
         )
 
-        XCTAssertEqual(info.lunarFestival, "Tết Nguyên Đán")
+        #expect(info.lunarFestival == "Tết Nguyên Đán")
     }
 
-    func testLunarInfoAcrossTenYears() async {
+    @Test("Lunar info fields are populated across ten years", arguments: Array(0..<120))
+    func lunarInfoAcrossTenYears(monthOffset: Int) async throws {
         let service = LunarService()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let start = calendar.date(from: DateComponents(year: 2021, month: 1, day: 15))!
+        let calendar = Self.utcGregorianCalendar()
+        let start = try #require(calendar.date(from: DateComponents(year: 2021, month: 1, day: 15)))
 
-        for monthOffset in 0..<120 {
-            guard let date = calendar.date(byAdding: .month, value: monthOffset, to: start) else {
-                XCTFail("Failed to build date at month offset \(monthOffset)")
-                return
-            }
+        let date = try #require(
+            calendar.date(byAdding: .month, value: monthOffset, to: start),
+            "Failed to build date at month offset \(monthOffset)"
+        )
 
-            let info = await service.dayInfo(
-                for: date,
-                locale: Locale(identifier: "vi_VN"),
-                timeZone: calendar.timeZone,
-                showSolarTerms: true,
-                showHolidays: true
-            )
+        let info = await service.dayInfo(
+            for: date,
+            locale: Locale(identifier: "vi_VN"),
+            timeZone: calendar.timeZone,
+            showSolarTerms: true,
+            showHolidays: true
+        )
 
-            XCTAssertFalse(info.lunarYearText.isEmpty)
-            XCTAssertFalse(info.lunarMonthText.isEmpty)
-            XCTAssertFalse(info.lunarDayText.isEmpty)
-        }
+        #expect(!info.lunarYearText.isEmpty)
+        #expect(!info.lunarMonthText.isEmpty)
+        #expect(!info.lunarDayText.isEmpty)
     }
 
-    func testTetPeriodDaysAreFlaggedForHighlight() async {
+    @Test("Tet period days are highlighted", arguments: [9, 10, 11, 12])
+    func tetPeriodDaysAreFlaggedForHighlight(day: Int) async throws {
         let service = LunarService()
+        let calendar = Self.utcGregorianCalendar()
+        let date = try #require(calendar.date(from: DateComponents(year: 2024, month: 2, day: day)))
+
+        let info = await service.dayInfo(
+            for: date,
+            locale: Locale(identifier: "vi_VN"),
+            timeZone: calendar.timeZone,
+            showSolarTerms: false,
+            showHolidays: false
+        )
+
+        #expect(info.isImportantFestivalDay)
+    }
+
+    private static func utcGregorianCalendar() -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-
-        let tetEve = calendar.date(from: DateComponents(year: 2024, month: 2, day: 9))!
-        let tetDay1 = calendar.date(from: DateComponents(year: 2024, month: 2, day: 10))!
-        let tetDay2 = calendar.date(from: DateComponents(year: 2024, month: 2, day: 11))!
-        let tetDay3 = calendar.date(from: DateComponents(year: 2024, month: 2, day: 12))!
-
-        let infoEve = await service.dayInfo(
-            for: tetEve,
-            locale: Locale(identifier: "vi_VN"),
-            timeZone: calendar.timeZone,
-            showSolarTerms: false,
-            showHolidays: false
-        )
-        let infoDay1 = await service.dayInfo(
-            for: tetDay1,
-            locale: Locale(identifier: "vi_VN"),
-            timeZone: calendar.timeZone,
-            showSolarTerms: false,
-            showHolidays: false
-        )
-        let infoDay2 = await service.dayInfo(
-            for: tetDay2,
-            locale: Locale(identifier: "vi_VN"),
-            timeZone: calendar.timeZone,
-            showSolarTerms: false,
-            showHolidays: false
-        )
-        let infoDay3 = await service.dayInfo(
-            for: tetDay3,
-            locale: Locale(identifier: "vi_VN"),
-            timeZone: calendar.timeZone,
-            showSolarTerms: false,
-            showHolidays: false
-        )
-
-        XCTAssertTrue(infoEve.isImportantFestivalDay)
-        XCTAssertTrue(infoDay1.isImportantFestivalDay)
-        XCTAssertTrue(infoDay2.isImportantFestivalDay)
-        XCTAssertTrue(infoDay3.isImportantFestivalDay)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
     }
 }

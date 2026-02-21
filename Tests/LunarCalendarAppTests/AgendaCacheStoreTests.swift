@@ -1,15 +1,20 @@
 @testable import LunarCalendarApp
 import Foundation
-import XCTest
+import Testing
 
-final class AgendaCacheStoreTests: XCTestCase {
-    func testReplaceAndLoadDayAgenda() async throws {
+@Suite("Agenda cache store")
+struct AgendaCacheStoreTests {
+    @Test("Replace and load day agenda")
+    func replaceAndLoadDayAgenda() async throws {
         let persistence = PersistenceController(inMemory: true)
         let cache = AgendaCacheStore(container: persistence.container)
 
-        let calendar = Calendar(identifier: .gregorian)
-        let day = calendar.date(from: DateComponents(year: 2026, month: 2, day: 4, hour: 9))!
-        let dayEnd = calendar.date(byAdding: .day, value: 2, to: day)!
+        await waitForPersistentStoreToLoad(in: persistence)
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let day = try #require(calendar.date(from: DateComponents(year: 2026, month: 2, day: 4, hour: 9)))
+        let dayEnd = try #require(calendar.date(byAdding: .day, value: 2, to: day))
 
         let items = [
             AgendaItem(
@@ -39,7 +44,25 @@ final class AgendaCacheStoreTests: XCTestCase {
         try await cache.replace(items: items, in: DateInterval(start: day, end: dayEnd))
 
         let loaded = try await cache.dayAgenda(for: day)
-        XCTAssertEqual(loaded.count, 2)
-        XCTAssertEqual(loaded.first?.title, "Meeting")
+        #expect(loaded.count == 2)
+        #expect(loaded.first?.title == "Meeting")
+    }
+
+    private func waitForPersistentStoreToLoad(
+        in persistence: PersistenceController,
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10)
+    ) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+
+        while persistence.container.persistentStoreCoordinator.persistentStores.isEmpty {
+            if clock.now >= deadline {
+                break
+            }
+            try? await Task.sleep(for: pollInterval)
+        }
+
+        #expect(!persistence.container.persistentStoreCoordinator.persistentStores.isEmpty)
     }
 }

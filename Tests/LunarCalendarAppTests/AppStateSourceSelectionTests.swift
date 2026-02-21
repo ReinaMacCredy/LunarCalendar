@@ -1,43 +1,36 @@
 @testable import LunarCalendarApp
-import XCTest
+import Testing
 
-@MainActor
-final class AppStateSourceSelectionTests: XCTestCase {
-    func testDeselectingOnlyEventSourceKeepsNoneSelectedState() {
+@Suite("AppState source selection")
+struct AppStateSourceSelectionTests {
+    @MainActor
+    @Test(
+        "Deselecting only source keeps none-selected state",
+        arguments: [CalendarSource.Kind.event, .reminder]
+    )
+    func deselectingOnlySourceKeepsNoneSelectedState(kind: CalendarSource.Kind) {
         let state = AppState()
         let source = CalendarSource(
-            id: "event:home",
-            identifier: "event-home",
+            id: "\(kind.rawValue):home",
+            identifier: "\(kind.rawValue)-home",
             title: "Home",
-            kind: .event
+            kind: kind
         )
         state.availableSources = [source]
 
-        XCTAssertTrue(state.isSourceSelected(source))
+        #expect(state.isSourceSelected(source))
 
         state.setSource(source, isSelected: false)
 
-        XCTAssertFalse(state.settings.allEventCalendarsSelected)
-        XCTAssertTrue(state.settings.selectedEventCalendarIDs.isEmpty)
-        XCTAssertFalse(state.isSourceSelected(source))
-    }
+        switch kind {
+        case .event:
+            #expect(state.settings.allEventCalendarsSelected == false)
+            #expect(state.settings.selectedEventCalendarIDs.isEmpty)
+        case .reminder:
+            #expect(state.settings.allReminderCalendarsSelected == false)
+            #expect(state.settings.selectedReminderCalendarIDs.isEmpty)
+        }
 
-    func testDeselectingOnlyReminderSourceKeepsNoneSelectedState() {
-        let state = AppState()
-        let source = CalendarSource(
-            id: "reminder:home",
-            identifier: "reminder-home",
-            title: "Home",
-            kind: .reminder
-        )
-        state.availableSources = [source]
-
-        XCTAssertTrue(state.isSourceSelected(source))
-
-        state.setSource(source, isSelected: false)
-
-        XCTAssertFalse(state.settings.allReminderCalendarsSelected)
-        XCTAssertTrue(state.settings.selectedReminderCalendarIDs.isEmpty)
-        XCTAssertFalse(state.isSourceSelected(source))
+        #expect(state.isSourceSelected(source) == false)
     }
 }
